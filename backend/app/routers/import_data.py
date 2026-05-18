@@ -46,13 +46,31 @@ def _decode_upload(raw: bytes) -> str:
     raise HTTPException(400, "无法识别文件编码，请使用 UTF-8 或 GBK CSV")
 
 
+def _normalize_row(row: dict) -> dict[str, str]:
+    """去除表头 BOM/空格，统一为字符串"""
+    return {str(k).strip().lstrip("\ufeff"): ("" if v is None else str(v).strip()) for k, v in row.items()}
+
+
+def _to_int(val: Any) -> Optional[int]:
+    if val is None or str(val).strip() == "":
+        return None
+    return int(float(str(val).strip()))
+
+
+def _to_float(val: Any) -> Optional[float]:
+    if val is None or str(val).strip() == "":
+        return None
+    return float(str(val).strip())
+
+
 async def _import_knowledge_rows(rows: List[Dict[str, str]]) -> int:
     db = await get_db()
     n = 0
     try:
         ts = now_iso()
-        for row in rows:
-            title = (row.get("title") or "").strip()
+        for raw in rows:
+            row = _normalize_row(raw)
+            title = row.get("title") or ""
             if not title:
                 continue
             await db.execute(
@@ -84,24 +102,21 @@ async def _import_knowledge_rows(rows: List[Dict[str, str]]) -> int:
 
 async def _import_process_rows(rows: List[Dict[str, str]]) -> int:
     db = await get_db()
-    n = 0
+    imported = 0
+    skipped = 0
     try:
         ts = now_iso()
-        for row in rows:
-            part_no = (row.get("part_no") or "").strip()
-            op_no = row.get("operation_no")
-            if not part_no or not op_no:
+        for raw in rows:
+            row = _normalize_row(raw)
+            part_no = row.get("part_no") or ""
+            op_no = _to_int(row.get("operation_no"))
+            if not part_no or op_no is None:
+                skipped += 1
                 continue
 
-            def f(key: str) -> Optional[float]:
-                v = row.get(key)
-                if v is None or str(v).strip() == "":
-                    return None
-                return float(v)
-
-            await db.execute(
+            cur = await db.execute(
                 """
-                INSERT INTO part_process (
+                INSERT OR IGNORE INTO part_process (
                     part_no, part_name, material, operation_no, operation_name,
                     equipment_code, tool_code,
                     spindle_speed, cutting_depth, feed_rate,
@@ -111,32 +126,35 @@ async def _import_process_rows(rows: List[Dict[str, str]]) -> int:
                 """,
                 (
                     part_no,
-                    row.get("part_name"),
-                    row.get("material"),
-                    int(op_no),
+                    row.get("part_name") or None,
+                    row.get("material") or None,
+                    op_no,
                     (row.get("operation_name") or f"工序{op_no}").strip(),
-                    row.get("equipment_code"),
-                    row.get("tool_code"),
-                    f("spindle_speed"),
-                    f("cutting_depth"),
-                    f("feed_rate"),
-                    f("speed_min"),
-                    f("speed_max"),
-                    f("depth_min"),
-                    f("depth_max"),
-                    f("feed_min"),
-                    f("feed_max"),
-                    row.get("approved_by"),
-                    row.get("remark"),
+                    row.get("equipment_code") or None,
+                    row.get("tool_code") or None,
+                    _to_float(row.get("spindle_speed")),
+                    _to_float(row.get("cutting_depth")),
+                    _to_float(row.get("feed_rate")),
+                    _to_float(row.get("speed_min")),
+                    _to_float(row.get("speed_max")),
+                    _to_float(row.get("depth_min")),
+                    _to_float(row.get("depth_max")),
+                    _to_float(row.get("feed_min")),
+                    _to_float(row.get("feed_max")),
+                    row.get("approved_by") or None,
+                    row.get("remark") or None,
                     ts,
                     ts,
                 ),
             )
-            n += 1
+            if cur.rowcount:
+                imported += 1
+            else:
+                skipped += 1
         await db.commit()
     finally:
         await db.close()
-    return n
+    return {"imported": imported, "skipped": skipped, "total_rows": len(rows)}
 
 
 async def _import_parts_rows(rows: List[Dict[str, str]]) -> int:
@@ -144,9 +162,10 @@ async def _import_parts_rows(rows: List[Dict[str, str]]) -> int:
     n = 0
     try:
         ts = now_iso()
-        for row in rows:
-            part_no = (row.get("part_no") or "").strip()
-            part_name = (row.get("part_name") or "").strip()
+        for raw in rows:
+            row = _normalize_row(raw)
+            part_no = row.get("part_no") or ""
+            part_name = row.get("part_name") or ""
             if not part_no or not part_name:
                 continue
             cur = await db.execute(
@@ -223,9 +242,21 @@ async def import_csv(kind: str, file: UploadFile = File(...)):
     rows = list(reader)
     if not rows:
         raise HTTPException(400, "CSV 无数据行")
-    count = await IMPORTERS[kind](rows)
-    await write_audit("IMPORT", kind, detail={"file": file.filename, "rows": count})
-    return {"ok": True, "imported": count, "kind": kind}
+    result = await IMPORTERS[kind](rows)
+    if isinstance(result, dict):
+        detail = {"file": file.filename, **result}
+        await write_audit("IMPORT", kind, detail=detail)
+        payload: Dict[str, Any] = {"ok": True, "kind": kind, **result}
+        if result.get("imported", 0) == 0 and result.get("total_rows", 0) > 0:
+            sample = _normalize_row(rows[0])
+            payload["hint"] = (
+                "未新增任何行：可能已全部存在（重复 part_no+工序号+版本），"
+                "或缺少 part_no/operation_no 列。请先在「静态工艺」列表确认数量，"
+                f"或对照模板表头。当前首行列名: {', '.join(sample.keys())}"
+            )
+        return payload
+    await write_audit("IMPORT", kind, detail={"file": file.filename, "rows": result})
+    return {"ok": True, "imported": result, "kind": kind}
 
 
 @router.post("/json", dependencies=[Depends(require_api_key)])
@@ -238,8 +269,9 @@ async def import_json(payload: Dict[str, Any]):
             continue
         if not isinstance(items, list):
             raise HTTPException(400, f"{key} 必须是数组")
-        rows = [dict(x) for x in items]
-        result[key] = await importer(rows)
+        rows = [_normalize_row(dict(x)) for x in items]
+        r = await importer(rows)
+        result[key] = r.get("imported", r) if isinstance(r, dict) else r
     await write_audit("IMPORT", "json", detail=result)
     return {"ok": True, "imported": result}
 

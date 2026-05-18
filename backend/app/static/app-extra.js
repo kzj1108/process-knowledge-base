@@ -239,8 +239,11 @@ function initUploadPage() {
     fd.append("file", file);
     try {
       const r = await apiUpload(`/api/v1/import/csv/${kind}`, fd);
-      document.getElementById("up-result").textContent = `成功导入 ${r.imported} 条`;
-      toast(`已导入 ${r.imported} 条`);
+      let msg = `成功导入 ${r.imported ?? 0} 条`;
+      if (r.skipped != null) msg += `，跳过 ${r.skipped} 条（重复或缺字段）`;
+      if (r.hint) msg += `。${r.hint}`;
+      document.getElementById("up-result").textContent = msg;
+      toast(r.imported > 0 ? `已导入 ${r.imported} 条` : msg, !r.imported && (r.skipped || r.hint));
       loadDashboard();
     } catch (e) {
       toast(e.message, true);
