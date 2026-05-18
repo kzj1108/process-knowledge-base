@@ -242,8 +242,23 @@ document.getElementById("p-form")?.addEventListener("submit", async (e) => {
 document.getElementById("p-filter-btn")?.addEventListener("click", loadProcess);
 
 async function loadParts() {
-  const data = await api("/api/v1/parts");
-  document.getElementById("parts-table").innerHTML = data
+  const q = (document.getElementById("parts-search")?.value || "").trim();
+  const params = q ? `?q=${encodeURIComponent(q)}` : "";
+  const data = await api("/api/v1/parts" + params);
+  const hint = document.getElementById("parts-search-hint");
+  if (hint) {
+    hint.textContent = q
+      ? `共 ${data.length} 条匹配「${q}」`
+      : data.length
+        ? `共 ${data.length} 条`
+        : "";
+  }
+  const tbody = document.getElementById("parts-table");
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="5">${q ? "未找到匹配的零件，请换个关键词" : "暂无零件数据"}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data
     .map(
       (p) => `<tr>
         <td>${p.part_no}</td>
@@ -258,6 +273,19 @@ async function loadParts() {
     btn.onclick = () => openPartDetail(btn.dataset.viewPart);
   });
 }
+
+document.getElementById("parts-search-btn")?.addEventListener("click", loadParts);
+document.getElementById("parts-search-clear")?.addEventListener("click", () => {
+  const input = document.getElementById("parts-search");
+  if (input) input.value = "";
+  loadParts();
+});
+document.getElementById("parts-search")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    loadParts();
+  }
+});
 
 document.getElementById("part-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();

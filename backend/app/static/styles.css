@@ -132,6 +132,13 @@ body {
   align-items: center;
 }
 
+.toolbar #parts-search,
+.toolbar #k-search {
+  flex: 1;
+  min-width: 200px;
+  max-width: 420px;
+}
+
 input,
 select,
 textarea {

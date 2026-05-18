@@ -20,9 +20,10 @@ async def list_parts(q: Optional[str] = Query(None)):
                 """
                 SELECT * FROM part_catalog
                 WHERE part_no LIKE ? OR part_name LIKE ? OR material LIKE ?
+                   OR category LIKE ? OR drawing_no LIKE ? OR remark LIKE ?
                 ORDER BY part_no
                 """,
-                (like, like, like),
+                (like, like, like, like, like, like),
             )
         else:
             cur = await db.execute("SELECT * FROM part_catalog ORDER BY part_no")

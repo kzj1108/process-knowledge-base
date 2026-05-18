@@ -155,6 +155,12 @@
 
         <section id="page-parts" class="tab-page">
           <h1 class="page-title">零件主数据</h1>
+          <div class="toolbar">
+            <input id="parts-search" placeholder="搜索零件号 / 名称 / 材料 / 分类" />
+            <button type="button" id="parts-search-btn">查询</button>
+            <button type="button" class="secondary" id="parts-search-clear">清空</button>
+            <span id="parts-search-hint" class="hint"></span>
+          </div>
           <table>
             <thead><tr><th>零件号</th><th>名称</th><th>材料</th><th>分类</th><th>操作</th></tr></thead>
             <tbody id="parts-table"></tbody>
