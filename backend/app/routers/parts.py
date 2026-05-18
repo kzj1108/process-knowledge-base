@@ -45,11 +45,30 @@ async def get_part(part_no: str):
             (part_no,),
         )
         know = await db.execute(
-            "SELECT id, category, title, tags, status FROM process_knowledge WHERE related_part_no = ?",
+            """
+            SELECT id, category, title, content, tags, related_op_no, author, source, status, created_at
+            FROM process_knowledge WHERE related_part_no = ?
+            ORDER BY id DESC LIMIT 50
+            """,
+            (part_no,),
+        )
+        opt = await db.execute(
+            """
+            SELECT id, equipment_code, operation_no, pred_spindle, pred_depth, pred_feed,
+                   model_version, score, adopted, created_at
+            FROM optimization_run WHERE part_no = ?
+            ORDER BY created_at DESC LIMIT 10
+            """,
             (part_no,),
         )
         data["processes"] = [row_to_dict(r) for r in await proc.fetchall()]
         data["knowledge"] = [row_to_dict(r) for r in await know.fetchall()]
+        data["optimizations"] = [row_to_dict(r) for r in await opt.fetchall()]
+        data["summary"] = {
+            "process_count": len(data["processes"]),
+            "knowledge_count": len(data["knowledge"]),
+            "optimization_count": len(data["optimizations"]),
+        }
         return data
     finally:
         await db.close()

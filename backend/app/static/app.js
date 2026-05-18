@@ -255,12 +255,7 @@ async function loadParts() {
     )
     .join("");
   document.querySelectorAll("[data-view-part]").forEach((btn) => {
-    btn.onclick = async () => {
-      const d = await api(`/api/v1/parts/${btn.dataset.viewPart}`);
-      alert(
-        `零件: ${d.part_no}\n工序数: ${d.processes?.length || 0}\n关联知识: ${d.knowledge?.length || 0}`
-      );
-    };
+    btn.onclick = () => openPartDetail(btn.dataset.viewPart);
   });
 }
 

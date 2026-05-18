@@ -326,3 +326,127 @@ th {
   font-family: Consolas, monospace;
   font-size: 0.82rem;
 }
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.modal-box {
+  position: relative;
+  width: min(920px, 100%);
+  max-height: 88vh;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 10px;
+}
+
+.modal-body {
+  padding: 16px 20px 20px;
+  overflow: auto;
+}
+
+.detail-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detail-meta .item {
+  background: #0f1419;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.detail-meta .k {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.detail-meta .v {
+  font-size: 0.95rem;
+  word-break: break-all;
+}
+
+.detail-section {
+  margin-top: 16px;
+}
+
+.detail-section h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  color: #93c5fd;
+}
+
+.detail-table-wrap {
+  overflow: auto;
+  max-height: 220px;
+}
+
+.knowledge-card {
+  background: #0f1419;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.knowledge-card .kt {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.knowledge-card .kc {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.detail-empty {
+  color: var(--muted);
+  font-size: 0.88rem;
+  padding: 8px 0;
+}

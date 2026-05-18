@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from app.db import get_db
 from app.models import RealtimeIn
 from app.services.audit import write_audit
+from app.services.bulk_seed import run_bulk_seed
 from app.utils import now_iso, require_api_key
 
 router = APIRouter(prefix="/api/v1/import", tags=["数据导入"])
@@ -241,6 +242,16 @@ async def import_json(payload: Dict[str, Any]):
         result[key] = await importer(rows)
     await write_audit("IMPORT", "json", detail=result)
     return {"ok": True, "imported": result}
+
+
+@router.post("/seed-bulk", dependencies=[Depends(require_api_key)])
+async def seed_bulk(total: int = 3000):
+    """一键生成约 3000 条演示数据（零件/工序/知识/优化）"""
+    if total > 10000:
+        raise HTTPException(400, "单次最多 10000 条")
+    stats = await run_bulk_seed(total)
+    await write_audit("SEED_BULK", "database", detail=stats)
+    return {"ok": True, "imported": stats}
 
 
 @router.post("/reseed", dependencies=[Depends(require_api_key)])

@@ -51,6 +51,7 @@
           <p class="hint">演示库含多类零件、工序与工艺知识。使用「数据上传」导入 CSV/JSON，「实时监控」查看 SSE 推送。</p>
           <div class="toolbar">
             <button type="button" class="secondary" id="btn-reseed">重新加载演示数据</button>
+            <button type="button" id="btn-seed-3000">一键导入 3000 条数据</button>
           </div>
           <div id="stats-grid" class="stats-grid"></div>
           <div class="panel">
@@ -269,6 +270,17 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="detail-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" id="detail-modal-backdrop"></div>
+      <div class="modal-box" role="dialog">
+        <div class="modal-header">
+          <h2 id="detail-modal-title">零件详情</h2>
+          <button type="button" class="modal-close" id="detail-modal-close" aria-label="关闭">&times;</button>
+        </div>
+        <div id="detail-modal-body" class="modal-body"></div>
+      </div>
     </div>
 
     <div id="toast" class="toast hidden"></div>
