@@ -62,11 +62,14 @@ async def health():
     return {"status": "ok", "service": "process-knowledge-base", "version": "2.0.0"}
 
 
+_NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+
+
 @app.get("/")
 async def admin_home():
     index = STATIC_DIR / "index.html"
     if index.exists():
-        return FileResponse(index)
+        return FileResponse(index, headers=_NO_CACHE)
     return {"message": "工艺知识库 API 运行中", "docs": "/docs"}
 
 

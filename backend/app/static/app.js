@@ -44,6 +44,7 @@ document.getElementById("login-form")?.addEventListener("submit", async (e) => {
     sessionStorage.setItem(STORAGE_KEY, data.api_key);
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("app").style.display = "grid";
+    ensurePartsSearchUi();
     loadDashboard();
   } catch (err) {
     toast(err.message, true);
@@ -62,7 +63,10 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
     if (page === "dashboard") loadDashboard();
     if (page === "knowledge") loadKnowledge();
     if (page === "process") loadProcess();
-    if (page === "parts") loadParts();
+    if (page === "parts") {
+      ensurePartsSearchUi();
+      loadParts();
+    }
     if (page === "equipment") loadEquipment();
     if (page === "dynamic") loadDynamic();
     if (page === "upload") {
@@ -274,18 +278,45 @@ async function loadParts() {
   });
 }
 
-document.getElementById("parts-search-btn")?.addEventListener("click", loadParts);
-document.getElementById("parts-search-clear")?.addEventListener("click", () => {
-  const input = document.getElementById("parts-search");
-  if (input) input.value = "";
-  loadParts();
-});
-document.getElementById("parts-search")?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    loadParts();
+let partsSearchUiReady = false;
+
+function ensurePartsSearchUi() {
+  const page = document.getElementById("page-parts");
+  if (!page) return;
+
+  if (!document.getElementById("parts-search")) {
+    const table = page.querySelector("table");
+    const panel = document.createElement("div");
+    panel.className = "search-panel";
+    panel.id = "parts-search-panel";
+    panel.innerHTML = `
+      <div class="search-panel-title">搜索零件</div>
+      <div class="toolbar">
+        <input id="parts-search" type="search" placeholder="零件号 / 名称 / 材料 / 分类，回车查询" autocomplete="off" />
+        <button type="button" id="parts-search-btn">查询</button>
+        <button type="button" class="secondary" id="parts-search-clear">清空</button>
+        <span id="parts-search-hint" class="hint"></span>
+      </div>`;
+    if (table) page.insertBefore(panel, table);
+    else page.appendChild(panel);
   }
-});
+
+  if (partsSearchUiReady) return;
+  partsSearchUiReady = true;
+
+  document.getElementById("parts-search-btn")?.addEventListener("click", loadParts);
+  document.getElementById("parts-search-clear")?.addEventListener("click", () => {
+    const input = document.getElementById("parts-search");
+    if (input) input.value = "";
+    loadParts();
+  });
+  document.getElementById("parts-search")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      loadParts();
+    }
+  });
+}
 
 document.getElementById("part-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -367,5 +398,6 @@ document.getElementById("dyn-refresh")?.addEventListener("click", loadDynamic);
 if (sessionStorage.getItem(STORAGE_KEY)) {
   document.getElementById("login-screen").classList.add("hidden");
   document.getElementById("app").style.display = "grid";
+  ensurePartsSearchUi();
   loadDashboard();
 }
