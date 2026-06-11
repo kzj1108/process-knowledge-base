@@ -1,0 +1,30 @@
+services:
+  pkb:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    environment:
+      PKB_DB_PATH: /data/process_kb.db
+      PKB_API_KEY: ${PKB_API_KEY:-pkb-change-me}
+      PKB_ADMIN_USER: ${PKB_ADMIN_USER:-admin}
+      PKB_ADMIN_PASS: ${PKB_ADMIN_PASS:-admin123}
+    volumes:
+      - pkb_data:/data
+    expose:
+      - "8090"
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - pkb
+
+volumes:
+  pkb_data:

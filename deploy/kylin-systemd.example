@@ -1,0 +1,19 @@
+# 麒麟 / UOS 上 Unity Standalone 自启示例
+# 安装路径: /opt/digital-twin/MachiningTwin.x86_64
+# 配置: /opt/digital-twin/StreamingAssets/twin_config.json
+
+[Unit]
+Description=Digital Twin Machining Visualization
+After=network.target process-knowledge-api.service
+
+[Service]
+Type=simple
+User=twin
+WorkingDirectory=/opt/digital-twin
+ExecStart=/opt/digital-twin/MachiningTwin.x86_64 -screen-fullscreen 1
+Restart=on-failure
+RestartSec=5
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=multi-user.target

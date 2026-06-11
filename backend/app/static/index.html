@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>工艺知识库管理系统</title>
+    <link rel="stylesheet" href="/assets/styles.css?v=20260518" />
+  </head>
+  <body>
+    <div id="login-screen">
+      <div class="login-card">
+        <h1>工艺知识库</h1>
+        <p>加工单元数字孪生 · 静态工艺与知识条目管理</p>
+        <form id="login-form">
+          <label class="form-grid" style="display: block; margin-bottom: 12px">
+            <span style="font-size: 0.8rem; color: var(--muted)">用户名</span>
+            <input name="username" value="admin" required style="width: 100%; margin-top: 4px" />
+          </label>
+          <label style="display: block; margin-bottom: 16px">
+            <span style="font-size: 0.8rem; color: var(--muted)">密码</span>
+            <input name="password" type="password" value="admin123" required style="width: 100%; margin-top: 4px" />
+          </label>
+          <button type="submit" style="width: 100%">登录</button>
+        </form>
+        <p style="margin-top: 16px; font-size: 0.75rem; color: var(--muted)">
+          默认账号 admin / admin123，生产环境请设置环境变量 PKB_ADMIN_PASS、PKB_API_KEY
+        </p>
+      </div>
+    </div>
+
+    <div id="app">
+      <aside class="sidebar" style="display: flex; flex-direction: column">
+        <h2>工艺知识库</h2>
+        <button class="nav-btn active" data-page="dashboard">总览</button>
+        <button class="nav-btn" data-page="knowledge">知识条目</button>
+        <button class="nav-btn" data-page="process">静态工艺</button>
+        <button class="nav-btn" data-page="parts">零件主数据</button>
+        <button class="nav-btn" data-page="equipment">设备</button>
+        <button class="nav-btn" data-page="dynamic">动态数据</button>
+        <button class="nav-btn" data-page="upload">数据上传</button>
+        <button class="nav-btn" data-page="live">实时监控</button>
+        <div id="access-url" class="access-url"></div>
+        <div class="user-bar">
+          <button id="logout-btn" class="secondary" style="width: 100%">退出登录</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section id="page-dashboard" class="tab-page active">
+          <h1 class="page-title">系统总览</h1>
+          <p class="hint">演示库含多类零件、工序与工艺知识。使用「数据上传」导入 CSV/JSON，「实时监控」查看 SSE 推送。</p>
+          <div class="toolbar">
+            <button type="button" class="secondary" id="btn-reseed">重新加载演示数据</button>
+            <button type="button" id="btn-seed-3000">一键导入 3000 条数据</button>
+          </div>
+          <div id="stats-grid" class="stats-grid"></div>
+          <div class="panel">
+            <h3>最近知识条目</h3>
+            <table>
+              <thead><tr><th>类别</th><th>标题</th><th>关联零件</th></tr></thead>
+              <tbody id="recent-knowledge"></tbody>
+            </table>
+          </div>
+          <div class="panel">
+            <h3>最近优化记录</h3>
+            <table>
+              <thead><tr><th>设备</th><th>零件</th><th>推荐参数</th><th>采纳</th></tr></thead>
+              <tbody id="recent-opt"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="page-knowledge" class="tab-page">
+          <h1 class="page-title">工艺知识条目</h1>
+          <div class="toolbar">
+            <input id="k-search" placeholder="搜索标题/内容/标签" />
+            <select id="k-category">
+              <option value="">全部类别</option>
+              <option value="RULE">规则 RULE</option>
+              <option value="FAQ">问答 FAQ</option>
+              <option value="CASE">案例 CASE</option>
+              <option value="STANDARD">标准 STANDARD</option>
+            </select>
+            <button id="k-search-btn">查询</button>
+          </div>
+          <table>
+            <thead>
+              <tr><th>ID</th><th>类别</th><th>标题</th><th>零件</th><th>状态</th><th>操作</th></tr>
+            </thead>
+            <tbody id="k-table"></tbody>
+          </table>
+          <div class="panel" style="margin-top: 20px">
+            <h3>新增 / 编辑</h3>
+            <form id="k-form">
+              <input type="hidden" id="k-id" />
+              <div class="form-grid">
+                <div>
+                  <label>类别</label>
+                  <select id="k-category-form" required>
+                    <option value="RULE">RULE 规则</option>
+                    <option value="FAQ">FAQ</option>
+                    <option value="CASE">CASE 案例</option>
+                    <option value="STANDARD">STANDARD 标准</option>
+                  </select>
+                </div>
+                <div><label>标题</label><input id="k-title" required /></div>
+                <div><label>关联零件号</label><input id="k-part" placeholder="PART-GEAR-001" /></div>
+                <div><label>关联工序号</label><input id="k-op" type="number" /></div>
+                <div><label>标签</label><input id="k-tags" placeholder="40Cr,铣齿" /></div>
+                <div><label>作者</label><input id="k-author" /></div>
+              </div>
+              <div style="margin-top: 12px">
+                <label>内容</label>
+                <textarea id="k-content" required></textarea>
+              </div>
+              <button type="submit" style="margin-top: 12px">保存</button>
+            </form>
+          </div>
+        </section>
+
+        <section id="page-process" class="tab-page">
+          <h1 class="page-title">静态结构化工艺</h1>
+          <div class="toolbar">
+            <input id="p-filter-part" placeholder="按零件号筛选" />
+            <button id="p-filter-btn">筛选</button>
+          </div>
+          <table>
+            <thead>
+              <tr><th>ID</th><th>零件</th><th>工序</th><th>名称</th><th>转速/切深/进给</th><th>设备</th><th>操作</th></tr>
+            </thead>
+            <tbody id="p-table"></tbody>
+          </table>
+          <div class="panel" style="margin-top: 20px">
+            <h3>新增工序工艺</h3>
+            <form id="p-form">
+              <div class="form-grid">
+                <div><label>零件号 *</label><input id="p-part" required /></div>
+                <div><label>零件名称</label><input id="p-partname" /></div>
+                <div><label>材料</label><input id="p-material" /></div>
+                <div><label>工序号 *</label><input id="p-opno" type="number" required /></div>
+                <div><label>工序名称 *</label><input id="p-opname" required /></div>
+                <div><label>设备编码</label><input id="p-equip" placeholder="CNC-01" /></div>
+                <div><label>刀具</label><input id="p-tool" /></div>
+                <div><label>转速 rpm</label><input id="p-speed" type="number" step="any" /></div>
+                <div><label>切深 mm</label><input id="p-depth" type="number" step="any" /></div>
+                <div><label>进给 mm/min</label><input id="p-feed" type="number" step="any" /></div>
+                <div><label>转速下限</label><input id="p-speed-min" type="number" step="any" /></div>
+                <div><label>转速上限</label><input id="p-speed-max" type="number" step="any" /></div>
+                <div><label>审批人</label><input id="p-approver" /></div>
+              </div>
+              <button type="submit" style="margin-top: 12px">添加工艺</button>
+            </form>
+          </div>
+        </section>
+
+        <section id="page-parts" class="tab-page">
+          <h1 class="page-title">零件主数据</h1>
+          <div class="search-panel" id="parts-search-panel">
+            <div class="search-panel-title">搜索零件</div>
+            <div class="toolbar">
+              <input id="parts-search" type="search" placeholder="零件号 / 名称 / 材料 / 分类，回车查询" autocomplete="off" />
+              <button type="button" id="parts-search-btn">查询</button>
+              <button type="button" class="secondary" id="parts-search-clear">清空</button>
+              <span id="parts-search-hint" class="hint"></span>
+            </div>
+          </div>
+          <table>
+            <thead><tr><th>零件号</th><th>名称</th><th>材料</th><th>分类</th><th>操作</th></tr></thead>
+            <tbody id="parts-table"></tbody>
+          </table>
+          <div class="panel" style="margin-top: 20px">
+            <h3>新增零件</h3>
+            <form id="part-form" class="form-grid">
+              <div><label>零件号</label><input id="part-no" required /></div>
+              <div><label>名称</label><input id="part-name" required /></div>
+              <div><label>材料</label><input id="part-mat" /></div>
+              <div><label>分类</label><input id="part-cat" /></div>
+              <div style="align-self: end"><button type="submit">添加</button></div>
+            </form>
+          </div>
+        </section>
+
+        <section id="page-equipment" class="tab-page">
+          <h1 class="page-title">设备主数据</h1>
+          <table>
+            <thead><tr><th>编码</th><th>名称</th><th>类型</th><th>型号</th><th>车间</th></tr></thead>
+            <tbody id="equip-table"></tbody>
+          </table>
+          <div class="panel" style="margin-top: 20px">
+            <h3>新增设备</h3>
+            <form id="equip-form" class="form-grid">
+              <div><label>编码</label><input id="eq-code" required /></div>
+              <div><label>名称</label><input id="eq-name" required /></div>
+              <div><label>类型</label>
+                <select id="eq-type">
+                  <option value="CNC">CNC</option>
+                  <option value="ROBOT">ROBOT</option>
+                  <option value="LINE">LINE</option>
+                </select>
+              </div>
+              <div><label>型号</label><input id="eq-model" /></div>
+              <div><label>车间</label><input id="eq-shop" /></div>
+              <div style="align-self: end"><button type="submit">添加</button></div>
+            </form>
+          </div>
+        </section>
+
+        <section id="page-dynamic" class="tab-page">
+          <h1 class="page-title">动态工艺数据</h1>
+          <div class="toolbar">
+            <input id="dyn-equip" value="CNC-01" placeholder="设备编码" />
+            <button id="dyn-refresh">刷新</button>
+          </div>
+          <div class="panel">
+            <h3>最新实时工况</h3>
+            <pre id="dyn-realtime" style="margin: 0; font-size: 0.85rem; overflow: auto"></pre>
+          </div>
+          <div class="panel">
+            <h3>优化记录历史</h3>
+            <table>
+              <thead><tr><th>ID</th><th>零件</th><th>推荐参数</th><th>模型</th><th>采纳</th><th>时间</th></tr></thead>
+              <tbody id="dyn-opt-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="page-upload" class="tab-page">
+          <h1 class="page-title">规则化数据上传</h1>
+          <p class="hint">支持 CSV 批量导入与 JSON 实时推送。下载模板后按列填写再上传。</p>
+          <div class="panel">
+            <h3>CSV 文件上传</h3>
+            <div class="toolbar">
+              <select id="up-kind">
+                <option value="knowledge">工艺知识 knowledge</option>
+                <option value="process">静态工艺 process</option>
+                <option value="parts">零件 parts</option>
+                <option value="realtime">实时工况 realtime</option>
+              </select>
+              <button type="button" class="secondary" id="up-template">下载模板</button>
+              <input type="file" id="up-file" accept=".csv,.txt" />
+              <button type="button" id="up-submit">上传导入</button>
+            </div>
+            <p id="up-result" class="hint"></p>
+          </div>
+          <div class="panel">
+            <h3>JSON 批量导入</h3>
+            <textarea id="up-json" placeholder='{"knowledge":[{"category":"RULE","title":"...","content":"..."}],"realtime":[{"equipment_code":"CNC-01","spindle_speed":1200}]}'></textarea>
+            <button type="button" id="up-json-btn" style="margin-top:10px">提交 JSON</button>
+          </div>
+          <div class="panel">
+            <h3>单条实时数据（模拟产线上报）</h3>
+            <form id="rt-quick-form" class="form-grid">
+              <div><label>设备</label><input id="rt-eq" value="CNC-01" required /></div>
+              <div><label>零件号</label><input id="rt-part" value="PART-GEAR-001" /></div>
+              <div><label>转速</label><input id="rt-speed" type="number" value="1200" /></div>
+              <div><label>切深</label><input id="rt-depth" type="number" step="0.01" value="2.0" /></div>
+              <div><label>进给</label><input id="rt-feed" type="number" value="750" /></div>
+              <div style="align-self:end"><button type="submit">立即上报</button></div>
+            </form>
+          </div>
+        </section>
+
+        <section id="page-live" class="tab-page">
+          <h1 class="page-title">实时监控</h1>
+          <div class="toolbar">
+            <input id="live-equip" value="CNC-01" />
+            <label><input type="checkbox" id="live-auto" checked /> 自动刷新 SSE</label>
+            <span id="live-status" class="badge">未连接</span>
+          </div>
+          <div class="live-grid">
+            <div class="panel live-card">
+              <h3>当前工况</h3>
+              <div id="live-metrics" class="metrics"></div>
+            </div>
+            <div class="panel live-card">
+              <h3>原始数据</h3>
+              <pre id="live-raw" class="live-pre"></pre>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="detail-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" id="detail-modal-backdrop"></div>
+      <div class="modal-box" role="dialog">
+        <div class="modal-header">
+          <h2 id="detail-modal-title">零件详情</h2>
+          <button type="button" class="modal-close" id="detail-modal-close" aria-label="关闭">&times;</button>
+        </div>
+        <div id="detail-modal-body" class="modal-body"></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/assets/app.js?v=20260518"></script>
+    <script src="/assets/app-extra.js?v=20260518"></script>
+  </body>
+</html>

@@ -1,11 +1,16 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
 services:
   - type: web
     name: process-knowledge-base
     runtime: python
     plan: free
+    region: singapore
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: PKB_DB_DRIVER
         value: sqlite
       - key: PKB_API_KEY
@@ -14,8 +19,6 @@ services:
         value: admin
       - key: PKB_ADMIN_PASS
         generateValue: true
-      - key: PYTHON_VERSION
-        value: "3.11.9"
       - key: PKB_TARGET_TOTAL
         value: "50000"
       - key: PKB_DB_PATH
