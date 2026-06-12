@@ -1,12 +1,12 @@
-# Render Blueprint: https://render.com/docs/blueprint-spec
+# Render Blueprint
 services:
   - type: web
     name: process-knowledge-base
     runtime: python
     plan: free
     region: singapore
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && PKB_ROOT=.. PKB_DB_PATH=../data/pkb.db PKB_TARGET_TOTAL=50000 python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
@@ -23,3 +23,5 @@ services:
         value: "50000"
       - key: PKB_DB_PATH
         value: data/pkb.db
+      - key: PKB_ROOT
+        value: .

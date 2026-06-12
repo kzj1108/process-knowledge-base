@@ -61,6 +61,7 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
     const page = btn.dataset.page;
     showPage(page);
     if (page === "dashboard") loadDashboard();
+    if (page === "recommend" && typeof loadRecommend === "function") loadRecommend();
     if (page === "knowledge") loadKnowledge();
     if (page === "process") loadProcess();
     if (page === "parts") {
@@ -68,6 +69,8 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
       loadParts();
     }
     if (page === "equipment") loadEquipment();
+    if (page === "quality" && typeof loadQuality === "function") loadQuality();
+    if (page === "integration" && typeof loadIntegration === "function") loadIntegration();
     if (page === "dynamic") loadDynamic();
     if (page === "upload") {
       /* handlers in app-extra.js */
@@ -86,7 +89,19 @@ async function loadDashboard() {
     knowledge: "知识条目",
     realtime_records: "实时记录",
     optimization_runs: "优化记录",
+    quality_records: "质量记录",
+    recommendation_results: "推荐记录",
   };
+  if (d.target_total) {
+    const wrap = document.getElementById("progress-wrap");
+    const pct = d.progress_percent || 0;
+    if (wrap) {
+      wrap.classList.remove("hidden");
+      document.getElementById("progress-text").textContent =
+        `数据建设 ${d.effective_total || 0} / ${d.target_total}（${pct}%）`;
+      document.getElementById("progress-bar").style.width = pct + "%";
+    }
+  }
   grid.innerHTML = Object.entries(d.counts)
     .map(
       ([k, v]) =>

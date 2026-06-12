@@ -341,3 +341,149 @@ document.getElementById("btn-reseed")?.addEventListener("click", async () => {
 if (sessionStorage.getItem(STORAGE_KEY)) {
   showAccessUrl();
 }
+
+function bindRecChips(groupId, hiddenId) {
+  const group = document.getElementById(groupId);
+  const hidden = document.getElementById(hiddenId);
+  if (!group || group.dataset.bound) return;
+  group.dataset.bound = "1";
+  group.querySelectorAll(".chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      group.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
+      btn.classList.add("active");
+      if (hidden) hidden.value = btn.dataset.value || "";
+    });
+  });
+}
+
+function bindRecSteppers() {
+  document.querySelectorAll(".stepper-btn").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => {
+      const input = document.getElementById(btn.dataset.target);
+      if (!input) return;
+      const delta = parseFloat(btn.dataset.delta);
+      const step = parseFloat(input.step) || 1;
+      let val = parseFloat(input.value) || 0;
+      val = Math.round((val + delta) / step) * step;
+      const min = input.min !== "" ? parseFloat(input.min) : null;
+      const max = input.max !== "" ? parseFloat(input.max) : null;
+      if (min != null) val = Math.max(min, val);
+      if (max != null) val = Math.min(max, val);
+      input.value = Number.isInteger(step) ? String(Math.round(val)) : val.toFixed(2);
+    });
+  });
+}
+
+function renderRecommendResult(data) {
+  const panel = document.getElementById("rec-output");
+  const summary = data.summary || {};
+  const equip = summary.recommended_equipment || data.recommended_process?.equipment_code || "—";
+  const conf =
+    summary.confidence_percent != null
+      ? `${summary.confidence_percent}%`
+      : data.confidence != null
+        ? `${(data.confidence * 100).toFixed(1)}%`
+        : "—";
+
+  document.getElementById("rec-out-equip").textContent = equip;
+  document.getElementById("rec-out-conf").textContent = conf;
+
+  const rows = data.detail_rows || [];
+  const tbody = document.getElementById("rec-detail-tbody");
+  tbody.innerHTML =
+    rows
+      .map(
+        (r) =>
+          `<tr class="${r.highlight ? "rec-row-warn" : ""}"><td>${esc(r.category)}</td><td>${esc(r.item)}</td><td>${esc(r.value)}</td><td>${esc(r.note || "")}</td></tr>`
+      )
+      .join("") || "<tr><td colspan='4'>暂无推荐明细</td></tr>";
+
+  const disclaimer = document.getElementById("rec-disclaimer");
+  disclaimer.textContent = data.disclaimer || "";
+  panel?.classList.remove("hidden");
+}
+
+function loadRecommend() {
+  const form = document.getElementById("rec-form");
+  if (!form || form.dataset.bound) return;
+  form.dataset.bound = "1";
+  bindRecChips("rec-grade-chips", "rec-grade");
+  bindRecChips("rec-heat-chips", "rec-heat");
+  bindRecSteppers();
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector(".rec-submit-btn");
+    const body = {
+      part_no: document.getElementById("rec-part")?.value?.trim() || null,
+      material: document.getElementById("rec-material")?.value || null,
+      module_m: parseFloat(document.getElementById("rec-module")?.value) || null,
+      teeth_z: parseInt(document.getElementById("rec-teeth")?.value, 10) || null,
+      accuracy_grade: document.getElementById("rec-grade")?.value || null,
+      heat_treatment: document.getElementById("rec-heat")?.value || null,
+      part_type: "齿轮",
+    };
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "正在生成…";
+    }
+    try {
+      const data = await api("/api/v1/recommendations/process", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      renderRecommendResult(data);
+      toast("推荐方案已生成，请工艺人员确认");
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "生成推荐方案";
+      }
+    }
+  });
+}
+
+async function loadQuality() {
+  const run = async () => {
+    const part = document.getElementById("qual-part")?.value.trim();
+    const q = part ? "?part_no=" + encodeURIComponent(part) : "";
+    try {
+      const data = await api("/api/v1/quality-records" + q);
+      const tbody = document.getElementById("qual-tbody");
+      tbody.innerHTML =
+        (data.items || [])
+          .map(
+            (r) =>
+              `<tr><td>${r.id}</td><td>${esc(r.part_no)}</td><td>${r.operation_no ?? "-"}</td><td>${r.profile_error ?? "-"}</td><td>${esc(r.quality_grade || "-")}</td><td>${esc(r.issue || "-")}</td></tr>`
+          )
+          .join("") || "<tr><td colspan='6'>暂无记录</td></tr>";
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+  const btn = document.getElementById("btn-qual-load");
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", run);
+  }
+  run();
+}
+
+function loadIntegration() {
+  const btn = document.getElementById("btn-int-catalog");
+  if (!btn || btn.dataset.bound) return;
+  btn.dataset.bound = "1";
+  btn.addEventListener("click", async () => {
+    const el = document.getElementById("int-result");
+    try {
+      const data = await api("/api/v1/integration/catalog");
+      el.textContent = JSON.stringify(data, null, 2);
+    } catch (e) {
+      el.textContent = e.message;
+    }
+  });
+}

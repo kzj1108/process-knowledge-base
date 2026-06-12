@@ -6,15 +6,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.db import init_db
+from app.db import TARGET_TOTAL, init_db
 from app.routers import (
+    audit,
     auth,
     equipment,
     import_data,
+    integration,
     knowledge,
     parts,
     process,
+    quality,
     realtime,
+    recommendations,
     stats,
     stream,
 )
@@ -30,8 +34,8 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="工艺知识库系统",
-    description="静态结构化工艺 + 动态优化数据 + 工艺知识条目管理",
-    version="2.0.0",
+    description="数控滚齿加工单元 · 实施方案5 · 静态工艺 + 知识 + 推荐 + 质量追溯",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -52,6 +56,10 @@ app.include_router(realtime.router)
 app.include_router(stats.router)
 app.include_router(import_data.router)
 app.include_router(stream.router)
+app.include_router(integration.router)
+app.include_router(recommendations.router)
+app.include_router(quality.router)
+app.include_router(audit.router)
 
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
@@ -59,7 +67,22 @@ if STATIC_DIR.exists():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "process-knowledge-base", "version": "2.0.0"}
+    return {
+        "status": "ok",
+        "service": "process-knowledge-base",
+        "version": "2.1.0",
+        "target_total": TARGET_TOTAL,
+    }
+
+
+@app.get("/api/v1/system/info")
+async def system_info():
+    return {
+        "name": "工艺知识库系统",
+        "version": "2.1.0",
+        "scenario": "变速箱机加车间数控滚齿加工单元",
+        "target_data_total": TARGET_TOTAL,
+    }
 
 
 _NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}

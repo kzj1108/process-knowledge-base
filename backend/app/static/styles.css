@@ -98,6 +98,31 @@ body {
   font-size: 1.25rem;
 }
 
+.sub-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: -0.5rem 0 1rem;
+}
+.progress-wrap {
+  margin: 1rem 0 1.25rem;
+}
+.progress-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+.progress-bar-outer {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-bar-inner {
+  height: 100%;
+  background: var(--accent);
+  width: 0;
+  transition: width 0.3s;
+}
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -471,4 +496,186 @@ th {
   color: var(--muted);
   font-size: 0.88rem;
   padding: 8px 0;
+}
+
+/* —— 工艺方案推荐 —— */
+.rec-output {
+  margin-bottom: 1.25rem;
+}
+
+.rec-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.rec-summary-item {
+  flex: 1;
+  min-width: 180px;
+  background: #0f1419;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+
+.rec-summary-item.accent {
+  border-color: #2563eb;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+}
+
+.rec-summary-item .k {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.rec-summary-item .v {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.rec-summary-item.accent .v {
+  color: #60a5fa;
+}
+
+.rec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  margin-bottom: 8px;
+}
+
+.rec-table th,
+.rec-table td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.rec-table th {
+  background: #1a2332;
+  color: #93c5fd;
+  font-weight: 600;
+}
+
+.rec-table tr:nth-child(even) td {
+  background: rgba(15, 20, 25, 0.6);
+}
+
+.rec-row-warn td:nth-child(3) {
+  color: #fbbf24;
+}
+
+.rec-form-panel {
+  background: #0f1419;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rec-field label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.rec-field input,
+.rec-field select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #0a0e14;
+  color: var(--text);
+}
+
+.rec-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.stepper {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.stepper input {
+  flex: 1;
+  text-align: center;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+.stepper-btn {
+  width: 42px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: #1a2332;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.1rem;
+  border-radius: 8px 0 0 8px;
+}
+
+.stepper-btn:last-of-type {
+  border-radius: 0 8px 8px 0;
+}
+
+.stepper-btn:hover {
+  background: #2563eb;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: #0a0e14;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.chip.active {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.rec-submit-btn {
+  width: 100%;
+  padding: 14px;
+  margin-top: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  color: #fff;
+  cursor: pointer;
+}
+
+.rec-submit-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.rec-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
 }

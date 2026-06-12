@@ -148,3 +148,41 @@ class OptimizationIn(BaseModel):
 class ProcessQuery(BaseModel):
     part_no: str
     operation_no: Optional[int] = None
+
+
+class RecommendIn(BaseModel):
+    part_no: Optional[str] = None
+    material: Optional[str] = None
+    module_m: Optional[float] = None
+    teeth_z: Optional[int] = None
+    face_width: Optional[float] = None
+    accuracy_grade: Optional[str] = None
+    precision_grade: Optional[str] = None
+    heat_treatment: Optional[str] = None
+    part_type: Optional[str] = "齿轮"
+    equipment_code: Optional[str] = None
+    tool_code: Optional[str] = None
+
+
+class RecommendConfirmIn(BaseModel):
+    confirmed: bool = True
+    note: str = ""
+
+
+class QualityRecordIn(BaseModel):
+    part_no: str
+    record_id: Optional[str] = None
+    operation_no: Optional[int] = None
+    equipment_code: Optional[str] = None
+    profile_error: Optional[float] = None
+    pitch_error: Optional[float] = None
+    helix_error: Optional[float] = None
+    burr_status: Optional[str] = None
+    surface_wave: Optional[str] = None
+    quality_grade: Optional[str] = None
+    issue: Optional[str] = None
+    action_taken: Optional[str] = None
+    recheck_result: Optional[str] = None
+    inspector: Optional[str] = None
+    trace_source: Optional[str] = "mes"
+    status: Optional[str] = "OPEN"
