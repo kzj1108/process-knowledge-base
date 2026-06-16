@@ -493,6 +493,72 @@ function renderModelFeatures(f) {
     </div>`;
 }
 
+function renderDrawingPanel(r) {
+  const planView = r.plan_view_svg || "";
+  const sideView = r.side_view_svg || "";
+  const datums = r.datums || [];
+  const rough = r.roughness || [];
+  if (!planView && !datums.length) return "";
+
+  const datumRows = datums
+    .map(
+      (d) =>
+        `<tr><td><strong>${esc(d.id)}</strong></td><td>${esc(d.face)}</td><td>${esc(d.type)}</td><td>${esc(d.note)}</td></tr>`
+    )
+    .join("");
+  const roughRows = rough
+    .map(
+      (x) =>
+        `<tr><td>${esc(x.surface)}</td><td>${esc(x.symbol)}</td><td>${esc(x.process)}</td></tr>`
+    )
+    .join("");
+
+  return `
+    <div class="model3d-drawing-panel">
+      <div class="model3d-drawing-title">零件工艺图纸 · 俯视图 / 侧视图 · 基准 · 粗糙度</div>
+      <div class="model3d-drawing-views">
+        ${planView ? `<div class="model3d-plan-view">${planView}</div>` : ""}
+        ${sideView ? `<div class="model3d-plan-view">${sideView}</div>` : ""}
+      </div>
+      <div class="model3d-drawing-tables">
+        <div>
+          <div class="model3d-mini-table-title">基准面 / 基准轴线</div>
+          <table class="model3d-mini-table">
+            <thead><tr><th>基准</th><th>表面</th><th>类型</th><th>说明</th></tr></thead>
+            <tbody>${datumRows || "<tr><td colspan='4'>-</td></tr>"}</tbody>
+          </table>
+        </div>
+        <div>
+          <div class="model3d-mini-table-title">表面粗糙度 Ra (μm)</div>
+          <table class="model3d-mini-table">
+            <thead><tr><th>表面</th><th>要求</th><th>加工</th></tr></thead>
+            <tbody>${roughRows || "<tr><td colspan='3'>-</td></tr>"}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
+function showSheetUpgradeHint(data) {
+  const el = document.getElementById("model3d-upgrade-hint");
+  if (!el) return;
+  const hasDrawing = (data.routes || []).some((r) => r.plan_view_svg);
+  const ver = data.sheet_version || "";
+  if (hasDrawing) {
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    return;
+  }
+  el.classList.remove("hidden");
+  el.innerHTML = `
+    <strong>⚠ 当前后端仍是旧版本</strong>（未返回工艺图纸数据${ver ? `，版本 ${esc(ver)}` : ""}）。
+    请：<br>
+    1. 关掉所有运行服务的黑窗口<br>
+    2. 双击 <code>backend\\start.bat</code> 重新启动<br>
+    3. 浏览器按 <strong>Ctrl + F5</strong> 强刷后再上传分析<br>
+    若用 Render，需先 push 代码并重新部署 Docker 版。`;
+}
+
 function renderModelRoutes(data) {
   const wrap = document.getElementById("model3d-routes");
   if (!wrap) return;
@@ -514,6 +580,7 @@ function renderModelRoutes(data) {
         )
         .join("");
       const diagram = r.flow_diagram_svg || "";
+      const drawingPanel = renderDrawingPanel(r);
       return `
         <div class="model3d-route-card">
           <div class="model3d-route-head">
@@ -523,11 +590,12 @@ function renderModelRoutes(data) {
             </div>
             <span class="model3d-conf">置信度 ${Math.round((r.confidence || 0) * 100)}%</span>
           </div>
+          ${drawingPanel}
           <div class="model3d-flow">${esc(r.flow_summary || r.description || "")}</div>
           ${diagram ? `<div class="model3d-diagram">${diagram}</div>` : ""}
           <div class="model3d-actions">
             <button type="button" class="secondary model3d-sheet-btn" data-route-idx="${idx}">
-              查看 / 打印工艺路线图
+              查看 / 打印完整工艺图纸（含平面图）
             </button>
           </div>
           <p class="hint">参考：${esc(r.reference || "-")}</p>
@@ -538,6 +606,8 @@ function renderModelRoutes(data) {
         </div>`;
     })
     .join("");
+
+  showSheetUpgradeHint(data);
 
   wrap.querySelectorAll(".model3d-sheet-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -560,6 +630,32 @@ function loadModel3d() {
   const host = location.hostname || "";
   const isLocal = host === "localhost" || host === "127.0.0.1" || host.startsWith("192.168.");
   const isRender = host.includes("onrender.com");
+
+  fetch("/api/v1/system/info")
+    .then((r) => r.json())
+    .then((info) => {
+      const el = document.getElementById("model3d-backend-ver");
+      if (!el) return;
+      const ver = info.sheet_version || info.version || "?";
+      const hasSheet = info.sheet_version === "2.2.0" || (info.features || []).includes("plan_view");
+      if (hasSheet) {
+        el.innerHTML =
+          '<span class="model3d-ver-ok">✓ 后端 v' +
+          esc(ver) +
+          " · 已含工艺图纸（俯视图/基准/粗糙度）— 上传模型并点「分析」后在下方结果区查看</span>";
+      } else if (isRender) {
+        el.innerHTML =
+          '<span class="model3d-ver-warn">⚠ 当前 Render 仍是旧版 v' +
+          esc(ver) +
+          "，无工艺图纸模块。需 push 最新代码到 GitHub 并在 Render 重新部署（Docker）。本机可先用 start.bat 测试。</span>";
+      } else {
+        el.innerHTML =
+          '<span class="model3d-ver-warn">⚠ 后端 v' +
+          esc(ver) +
+          ' 无图纸模块 — 请关掉黑窗口，双击 backend\\start.bat 重启，再 Ctrl+F5</span>';
+      }
+    })
+    .catch(() => {});
 
   fetch("/api/v1/recommendations/supported-formats")
     .then((r) => r.json())
@@ -650,7 +746,11 @@ function loadModel3d() {
       renderModelFeatures(data.model_features);
       renderModelRoutes(data);
       document.getElementById("model3d-disclaimer").textContent = data.disclaimer || "";
-      toast(`已识别「${data.model_features?.part_type || "零件"}」，生成 ${data.route_count || 0} 条路线`);
+      if ((data.routes || []).some((r) => r.plan_view_svg)) {
+        toast("已生成工艺图纸（含俯视图、基准面、粗糙度）");
+      } else {
+        toast("路线已生成，但未检测到图纸模块 — 请重启 start.bat 后 Ctrl+F5", true);
+      }
     } catch (err) {
       toast(err.message, true);
     } finally {

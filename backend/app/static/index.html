@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>工艺知识库管理系统</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260617" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260622" />
   </head>
   <body>
     <div id="login-screen">
@@ -317,6 +317,7 @@
 
         <section id="page-model3d" class="tab-page">
           <h1 class="page-title">三维模型智能工艺</h1>
+          <p id="model3d-backend-ver" class="model3d-backend-ver"></p>
 
           <div class="model3d-format-guide">
             <strong>推荐上传格式：STEP（.step / .stp）</strong>
@@ -371,6 +372,7 @@
           </form>
 
           <div id="model3d-output" class="hidden">
+            <div id="model3d-upgrade-hint" class="model3d-upgrade-hint hidden"></div>
             <div class="panel model3d-features" id="model3d-features"></div>
             <div id="model3d-routes" class="model3d-routes"></div>
             <p class="hint" id="model3d-disclaimer"></p>
@@ -433,6 +435,6 @@
 
     <div id="toast" class="toast hidden"></div>
     <script src="/assets/app.js?v=20260617"></script>
-    <script src="/assets/app-extra.js?v=20260619b"></script>
+    <script src="/assets/app-extra.js?v=20260622"></script>
   </body>
 </html>

@@ -792,11 +792,151 @@ th {
   margin-bottom: 8px;
 }
 
+.model3d-plan-view {
+  background: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 8px;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 220px;
+}
+
+.model3d-drawing-panel {
+  border: 2px solid #2563eb;
+  border-radius: 12px;
+  padding: 12px;
+  margin: 12px 0;
+  background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+}
+
+.model3d-drawing-title {
+  font-size: 0.85rem;
+  color: #93c5fd;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.model3d-drawing-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.model3d-drawing-tables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .model3d-drawing-tables {
+    grid-template-columns: 1fr;
+  }
+}
+
+.model3d-mini-table-title {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.model3d-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.model3d-mini-table th,
+.model3d-mini-table td {
+  border: 1px solid #334155;
+  padding: 4px 6px;
+  text-align: left;
+}
+
+.model3d-mini-table th {
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+.model3d-mini-table td {
+  color: #e2e8f0;
+}
+
+.model3d-upgrade-hint {
+  background: #422006;
+  border: 1px solid #b45309;
+  color: #fcd34d;
+  padding: 12px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.model3d-upgrade-hint code {
+  background: #1c1917;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.model3d-plan-view svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.model3d-plan-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.model3d-datum-row,
+.model3d-rough-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.model3d-datum-tag {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #1e3a5f;
+  color: #93c5fd;
+  border: 1px solid #2563eb;
+}
+
+.model3d-rough-tag {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #422006;
+  color: #fcd34d;
+  border: 1px solid #b45309;
+}
+
 .model3d-actions {
   margin-bottom: 10px;
 }
 
-.model3d-format-guide {
+.model3d-backend-ver {
+  margin: -8px 0 12px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  max-width: 720px;
+}
+
+.model3d-ver-ok {
+  color: #86efac;
+}
+
+.model3d-ver-warn {
+  color: #fbbf24;
+}
   background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
   border: 1px solid #2563eb;
   border-radius: 12px;

@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from starlette.staticfiles import StaticFiles
 
 from app.db import TARGET_TOTAL, init_db
 from app.services.model_parser import supported_formats
@@ -25,6 +25,16 @@ from app.routers import (
 )
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+APP_VERSION = "2.2.0"
+SHEET_VERSION = "2.2.0"
+
+
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        return response
 
 
 @asynccontextmanager
@@ -36,7 +46,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="工艺知识库系统",
     description="数控滚齿加工单元 · 实施方案5 · 静态工艺 + 知识 + 推荐 + 质量追溯",
-    version="2.1.0",
+    version="2.2.0",
     lifespan=lifespan,
 )
 
@@ -63,7 +73,7 @@ app.include_router(quality.router)
 app.include_router(audit.router)
 
 if STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
+    app.mount("/assets", NoCacheStaticFiles(directory=STATIC_DIR), name="assets")
 
 
 @app.get("/health")
@@ -72,7 +82,7 @@ async def health():
     return {
         "status": "ok",
         "service": "process-knowledge-base",
-        "version": "2.1.0",
+        "version": APP_VERSION,
         "target_total": TARGET_TOTAL,
         "cad_available": fmt.get("cad_available"),
     }
@@ -82,7 +92,9 @@ async def health():
 async def system_info():
     return {
         "name": "工艺知识库系统",
-        "version": "2.1.0",
+        "version": APP_VERSION,
+        "sheet_version": SHEET_VERSION,
+        "features": ["plan_view", "datum_faces", "surface_roughness"],
         "scenario": "变速箱机加车间数控滚齿加工单元",
         "target_data_total": TARGET_TOTAL,
     }

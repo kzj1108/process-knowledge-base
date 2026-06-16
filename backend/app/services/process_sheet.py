@@ -6,6 +6,12 @@ from datetime import datetime, timezone
 from html import escape
 from typing import Any
 
+from app.services.drawing_annotation import (
+    build_drawing_annotation,
+    datums_table_html,
+    roughness_table_html,
+)
+
 
 def attach_process_sheets(result: dict[str, Any]) -> dict[str, Any]:
     features = result.get("model_features") or {}
@@ -15,23 +21,38 @@ def attach_process_sheets(result: dict[str, Any]) -> dict[str, Any]:
         sheet = build_process_sheet(features, route)
         route["flow_diagram_svg"] = sheet["diagram_svg"]
         route["process_sheet_html"] = sheet["sheet_html"]
+        route["plan_view_svg"] = sheet["plan_view_svg"]
+        route["side_view_svg"] = sheet["side_view_svg"]
+        route["datums"] = sheet["datums"]
+        route["roughness"] = sheet["roughness"]
         sheets.append(
             {
                 "route_id": route.get("route_id"),
                 "route_name": route.get("route_name"),
                 "diagram_svg": sheet["diagram_svg"],
                 "process_sheet_html": sheet["sheet_html"],
+                "plan_view_svg": sheet["plan_view_svg"],
+                "side_view_svg": sheet["side_view_svg"],
             }
         )
     result["process_sheets"] = sheets
+    result["sheet_version"] = "2.2.0"
     return result
 
 
 def build_process_sheet(features: dict[str, Any], route: dict[str, Any]) -> dict[str, str]:
     ops = route.get("operations") or []
+    drawing = build_drawing_annotation(features, route)
     diagram_svg = _flow_diagram_svg(ops, route.get("route_name", "工艺路线"))
-    sheet_html = _process_sheet_html(features, route, ops)
-    return {"diagram_svg": diagram_svg, "sheet_html": sheet_html}
+    sheet_html = _process_sheet_html(features, route, ops, drawing)
+    return {
+        "diagram_svg": diagram_svg,
+        "sheet_html": sheet_html,
+        "plan_view_svg": drawing["plan_view_svg"],
+        "side_view_svg": drawing["side_view_svg"],
+        "datums": drawing["datums"],
+        "roughness": drawing["roughness"],
+    }
 
 
 def _flow_diagram_svg(operations: list[dict], title: str) -> str:
@@ -82,7 +103,10 @@ def _flow_diagram_svg(operations: list[dict], title: str) -> str:
 
 
 def _process_sheet_html(
-    features: dict[str, Any], route: dict[str, Any], operations: list[dict]
+    features: dict[str, Any],
+    route: dict[str, Any],
+    operations: list[dict],
+    drawing: dict[str, Any],
 ) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     fname = escape(str(features.get("filename") or "-"))
@@ -109,6 +133,11 @@ def _process_sheet_html(
         )
 
     diagram = _flow_diagram_svg(operations, route.get("route_name", ""))
+    plan_svg = drawing.get("plan_view_svg") or ""
+    side_svg = drawing.get("side_view_svg") or ""
+    datums_html = datums_table_html(drawing.get("datums") or [])
+    rough_html = roughness_table_html(drawing.get("roughness") or [])
+    draw_note = escape(str(drawing.get("drawing_note") or ""))
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"/>
@@ -116,16 +145,20 @@ def _process_sheet_html(
 <style>
   body {{ font-family: "Microsoft YaHei", sans-serif; margin: 24px; color: #111; }}
   h1 {{ font-size: 20px; margin: 0 0 4px; }}
+  h2 {{ font-size: 15px; margin: 20px 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }}
   .sub {{ color: #555; font-size: 13px; margin-bottom: 16px; }}
-  table {{ border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 12px; }}
+  table {{ border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }}
   th, td {{ border: 1px solid #333; padding: 6px 8px; text-align: left; }}
   th {{ background: #f0f0f0; }}
   .meta {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }}
   .meta div {{ border: 1px solid #ccc; padding: 8px; font-size: 13px; }}
   .meta .k {{ color: #666; font-size: 11px; }}
   .flow-box {{ border: 1px dashed #999; padding: 12px; margin: 12px 0; overflow-x: auto; }}
+  .draw-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }}
+  .draw-panel {{ border: 1px solid #999; padding: 8px; background: #fafafa; overflow: auto; }}
+  .draw-table {{ font-size: 12px; }}
   .note {{ font-size: 12px; color: #666; margin-top: 16px; }}
-  @media print {{ body {{ margin: 12mm; }} button {{ display: none; }} }}
+  @media print {{ body {{ margin: 12mm; }} button {{ display: none; }} .draw-row {{ break-inside: avoid; }} }}
 </style></head><body>
 <button onclick="window.print()" style="margin-bottom:12px;padding:8px 16px">打印 / 另存为 PDF</button>
 <h1>数控加工工艺路线图</h1>
@@ -139,7 +172,18 @@ def _process_sheet_html(
   <div><div class="k">参考</div>{ref}</div>
 </div>
 {dim_rows}
-<p><strong>工序流程：</strong>{flow}</p>
+<h2>零件图纸 · 俯视图 / 侧视图</h2>
+<p class="note">{draw_note}</p>
+<div class="draw-row">
+  <div class="draw-panel">{plan_svg}</div>
+  <div class="draw-panel">{side_svg}</div>
+</div>
+<h2>基准面 / 基准轴线</h2>
+{datums_html}
+<h2>表面粗糙度要求</h2>
+{rough_html}
+<h2>工序流程</h2>
+<p><strong>流程摘要：</strong>{flow}</p>
 <div class="flow-box">{diagram}</div>
 <table>
   <thead><tr>
@@ -148,7 +192,7 @@ def _process_sheet_html(
   </tr></thead>
   <tbody>{op_rows or '<tr><td colspan="7">无工序</td></tr>'}</tbody>
 </table>
-<p class="note">本工艺路线由三维模型几何特征自动识别生成，仅供工艺人员审核参考，正式下发前须签字确认。</p>
+<p class="note">本工艺路线由三维模型几何特征自动识别生成，基准与粗糙度为系统推断值，仅供工艺人员审核参考，正式下发前须签字确认。</p>
 </body></html>"""
 
 
