@@ -493,11 +493,171 @@ function renderModelFeatures(f) {
     </div>`;
 }
 
-function renderDrawingPanel(r) {
-  const planView = r.plan_view_svg || "";
-  const sideView = r.side_view_svg || "";
-  const datums = r.datums || [];
-  const rough = r.roughness || [];
+function featDim(f, axis) {
+  const keys = {
+    x: ["size_x_mm", "length_x"],
+    y: ["size_y_mm", "length_y"],
+    z: ["size_z_mm", "length_z"],
+  };
+  let v = f[keys[axis][0]];
+  if (v == null && f.dimensions_mm) v = f.dimensions_mm[keys[axis][1]];
+  if (v == null) {
+    const sorted = [f.length_mm, f.width_mm, f.height_mm].filter(Boolean).sort((a, b) => b - a);
+    const idx = { x: 0, y: 1, z: 2 }[axis];
+    v = sorted[idx] || 50;
+  }
+  return Math.max(Number(v) || 50, 1);
+}
+
+function inferClientDatums(f) {
+  const pt = f.part_type || "块体件";
+  const lx = featDim(f, "x").toFixed(1);
+  const ly = featDim(f, "y").toFixed(1);
+  const lz = featDim(f, "z").toFixed(1);
+  const hole = f.hole_diameter_mm;
+  if (pt === "齿轮") {
+    return [
+      { id: "A", face: "右端面", type: "平面", note: "装夹基准" },
+      { id: "B", face: "内孔轴线", type: "轴线", note: "径向基准" },
+      { id: "C", face: "外圆柱面", type: "圆柱", note: "辅助基准" },
+    ];
+  }
+  if (pt === "块体（带圆柱孔）" && hole) {
+    return [
+      { id: "A", face: "底面", type: "平面", note: `第一基准 ${lx}×${ly} mm` },
+      { id: "B", face: "长侧面", type: "平面", note: `高度 ${lz} mm` },
+      { id: "C", face: `孔轴线 Ø${hole}`, type: "轴线", note: "镗孔同轴度基准" },
+    ];
+  }
+  return [
+    { id: "A", face: "底面", type: "平面", note: `装夹面 ${lx}×${ly} mm` },
+    { id: "B", face: "长侧面", type: "平面", note: `高 ${lz} mm` },
+    { id: "C", face: "端面", type: "平面", note: "辅助定位" },
+  ];
+}
+
+function inferClientRoughness(f, route) {
+  const ops = (route.operations || []).map((o) => o.operation_name || "").join(" ");
+  const finish = /精铣|精滚|精车|精加工|镗|铰/.test(ops) ? "1.6" : /半精|扩孔/.test(ops) ? "3.2" : "6.3";
+  const holeRa = /镗|铰/.test(ops) ? "1.6" : /钻/.test(ops) ? "6.3" : "12.5";
+  const pt = f.part_type || "";
+  if (pt.includes("孔")) {
+    return [
+      { surface: "平面 A/B", symbol: `Ra ${finish}`, process: "铣削" },
+      { surface: `孔壁 Ø${f.hole_diameter_mm || "?"}`, symbol: `Ra ${holeRa}`, process: "钻/镗" },
+      { surface: "其余面", symbol: "Ra 6.3", process: "粗铣" },
+    ];
+  }
+  return [
+    { surface: "加工面", symbol: `Ra ${finish}`, process: "精铣" },
+    { surface: "非配合面", symbol: "Ra 6.3", process: "粗铣" },
+  ];
+}
+
+function svgBlockPlan(f) {
+  const lx = featDim(f, "x");
+  const ly = featDim(f, "y");
+  const scale = Math.min(300 / lx, 200 / ly);
+  const rw = lx * scale;
+  const rh = ly * scale;
+  const ox = (480 - rw) / 2;
+  const oy = 70;
+  let hole = "";
+  if (f.part_type === "块体（带圆柱孔）" && f.hole_diameter_mm) {
+    const hr = (Number(f.hole_diameter_mm) / 2) * scale;
+    const cx = ox + rw / 2;
+    const cy = oy + rh / 2;
+    hole = `<circle cx="${cx}" cy="${cy}" r="${hr}" fill="#fff" stroke="#dc2626" stroke-width="2"/>
+      <text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="11" fill="#dc2626">Ø${f.hole_diameter_mm}</text>
+      <circle cx="${cx + hr + 14}" cy="${cy}" r="9" fill="#fff" stroke="#1e293b"/><text x="${cx + hr + 14}" y="${cy + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#1e40af">C</text>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320">
+    <rect width="100%" height="100%" fill="#fafafa"/>
+    <text x="240" y="22" text-anchor="middle" font-size="13" fill="#334155">俯视图 Plan View</text>
+    <rect x="${ox}" y="${oy}" width="${rw}" height="${rh}" fill="#e2e8f0" stroke="#1e293b" stroke-width="2"/>
+    ${hole}
+    <polygon points="${ox + 12},${oy + rh - 10} ${ox + 12},${oy + rh - 24} ${ox + 22},${oy + rh - 17}" fill="#fff" stroke="#1e293b"/>
+    <text x="${ox + 26}" y="${oy + rh - 14}" font-size="12" font-weight="bold" fill="#1e40af">A</text>
+    <text x="${ox + rw / 2}" y="${oy + rh + 28}" text-anchor="middle" font-size="10" fill="#475569">${lx.toFixed(1)}</text>
+    <text x="${ox + rw + 20}" y="${oy + rh / 2}" font-size="10" fill="#475569">${ly.toFixed(1)}</text>
+    <text x="10" y="310" font-size="9" fill="#64748b">√ Ra 1.6~6.3（按工序推断）</text>
+  </svg>`;
+}
+
+function svgBlockSide(f) {
+  const lx = featDim(f, "x");
+  const lz = featDim(f, "z");
+  const scale = Math.min(300 / lx, 160 / lz);
+  const rw = lx * scale;
+  const rh = lz * scale;
+  const ox = (480 - rw) / 2;
+  const oy = 60;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="260" viewBox="0 0 480 260">
+    <rect width="100%" height="100%" fill="#fafafa"/>
+    <text x="240" y="22" text-anchor="middle" font-size="13" fill="#334155">侧视图 Side View</text>
+    <rect x="${ox}" y="${oy}" width="${rw}" height="${rh}" fill="#e2e8f0" stroke="#1e293b" stroke-width="2"/>
+    <text x="${ox + rw / 2}" y="${oy + rh + 22}" text-anchor="middle" font-size="10" fill="#475569">${lx.toFixed(1)}</text>
+    <text x="${ox - 8}" y="${oy + rh / 2}" font-size="10" fill="#475569">${lz.toFixed(1)}</text>
+  </svg>`;
+}
+
+function buildClientDrawing(features, route) {
+  const pt = features.part_type || "";
+  const planView = pt === "齿轮" ? svgBlockPlan(features) : svgBlockPlan(features);
+  const sideView = svgBlockSide(features);
+  return {
+    planView,
+    sideView,
+    datums: inferClientDatums(features),
+    roughness: inferClientRoughness(features, route),
+    clientSide: true,
+  };
+}
+
+function buildClientProcessSheetHtml(features, route, drawing) {
+  const d = drawing || buildClientDrawing(features, route);
+  const ops = route.operations || [];
+  const opRows = ops
+    .map(
+      (o) =>
+        `<tr><td>${o.operation_no ?? "-"}</td><td>${esc(o.operation_name)}</td><td>${esc(o.equipment_code || "-")}</td><td>${esc(o.tool_code || "-")}</td><td>${o.spindle_speed ?? "-"}</td><td>${o.feed_rate ?? "-"}</td></tr>`
+    )
+    .join("");
+  const datumRows = d.datums
+    .map((x) => `<tr><td>${esc(x.id)}</td><td>${esc(x.face)}</td><td>${esc(x.type)}</td><td>${esc(x.note)}</td></tr>`)
+    .join("");
+  const roughRows = d.roughness
+    .map((x) => `<tr><td>${esc(x.surface)}</td><td>${esc(x.symbol)}</td><td>${esc(x.process)}</td></tr>`)
+    .join("");
+  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"/><title>工艺图纸</title>
+<style>body{font-family:"Microsoft YaHei",sans-serif;margin:20px}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #333;padding:6px}th{background:#eee}.row{display:flex;gap:12px;flex-wrap:wrap}</style></head><body>
+<button onclick="window.print()">打印 / PDF</button>
+<h1>${esc(route.route_name)} — 工艺图纸</h1>
+<p>零件类型：${esc(features.part_type)} · 材料：${esc(features.material || "-")}</p>
+<div class="row"><div>${d.planView}</div><div>${d.sideView}</div></div>
+<h2>基准面</h2><table><tr><th>基准</th><th>表面</th><th>类型</th><th>说明</th></tr>${datumRows}</table>
+<h2>粗糙度</h2><table><tr><th>表面</th><th>要求</th><th>加工</th></tr>${roughRows}</table>
+<h2>工序</h2><table><tr><th>号</th><th>名称</th><th>设备</th><th>刀具</th><th>转速</th><th>进给</th></tr>${opRows}</table>
+<p style="color:#666;font-size:12px">示意图由前端根据识别尺寸生成，正式图纸须工艺员审定。</p></body></html>`;
+}
+
+function renderDrawingPanel(r, features) {
+  let planView = r.plan_view_svg || "";
+  let sideView = r.side_view_svg || "";
+  let datums = r.datums || [];
+  let rough = r.roughness || [];
+  let clientSide = false;
+
+  if (!planView && features) {
+    const client = buildClientDrawing(features, r);
+    planView = client.planView;
+    sideView = client.sideView;
+    datums = client.datums;
+    rough = client.roughness;
+    clientSide = true;
+    r._clientDrawing = client;
+  }
+
   if (!planView && !datums.length) return "";
 
   const datumRows = datums
@@ -515,7 +675,9 @@ function renderDrawingPanel(r) {
 
   return `
     <div class="model3d-drawing-panel">
-      <div class="model3d-drawing-title">零件工艺图纸 · 俯视图 / 侧视图 · 基准 · 粗糙度</div>
+      <div class="model3d-drawing-title">零件工艺图纸 · 俯视图 / 侧视图 · 基准 · 粗糙度${
+        clientSide ? " <span style='color:#fcd34d'>(前端示意)</span>" : ""
+      }</div>
       <div class="model3d-drawing-views">
         ${planView ? `<div class="model3d-plan-view">${planView}</div>` : ""}
         ${sideView ? `<div class="model3d-plan-view">${sideView}</div>` : ""}
@@ -542,27 +704,24 @@ function renderDrawingPanel(r) {
 function showSheetUpgradeHint(data) {
   const el = document.getElementById("model3d-upgrade-hint");
   if (!el) return;
-  const hasDrawing = (data.routes || []).some((r) => r.plan_view_svg);
+  const hasServerDrawing = (data.routes || []).some((r) => r.plan_view_svg);
   const ver = data.sheet_version || "";
-  if (hasDrawing) {
+  if (hasServerDrawing) {
     el.classList.add("hidden");
     el.innerHTML = "";
     return;
   }
   el.classList.remove("hidden");
   el.innerHTML = `
-    <strong>⚠ 当前后端仍是旧版本</strong>（未返回工艺图纸数据${ver ? `，版本 ${esc(ver)}` : ""}）。
-    请：<br>
-    1. 关掉所有运行服务的黑窗口<br>
-    2. 双击 <code>backend\\start.bat</code> 重新启动<br>
-    3. 浏览器按 <strong>Ctrl + F5</strong> 强刷后再上传分析<br>
-    若用 Render，需先 push 代码并重新部署 Docker 版。`;
+    <strong>提示：</strong>当前后端 v${esc(ver || "2.1.0")} 未含服务端图纸模块，已用<strong>前端根据识别尺寸生成二维示意图</strong>。
+    升级后端（start.bat 或 Render Docker 部署 v2.2.0）后可获得更完整工艺图纸。`;
 }
 
 function renderModelRoutes(data) {
   const wrap = document.getElementById("model3d-routes");
   if (!wrap) return;
   lastModel3dResult = data;
+  const features = data.model_features || {};
   const routes = data.routes || [];
   wrap.innerHTML = routes
     .map((r, idx) => {
@@ -580,7 +739,7 @@ function renderModelRoutes(data) {
         )
         .join("");
       const diagram = r.flow_diagram_svg || "";
-      const drawingPanel = renderDrawingPanel(r);
+      const drawingPanel = renderDrawingPanel(r, features);
       return `
         <div class="model3d-route-card">
           <div class="model3d-route-head">
@@ -613,7 +772,11 @@ function renderModelRoutes(data) {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.dataset.routeIdx, 10);
       const route = lastModel3dResult?.routes?.[idx];
-      const html = route?.process_sheet_html;
+      const feats = lastModel3dResult?.model_features || {};
+      let html = route?.process_sheet_html;
+      if (!html || !html.includes("俯视图")) {
+        html = buildClientProcessSheetHtml(feats, route, route?._clientDrawing);
+      }
       if (html) openProcessSheet(html);
       else toast("工艺路线图不可用", true);
     });
@@ -747,9 +910,9 @@ function loadModel3d() {
       renderModelRoutes(data);
       document.getElementById("model3d-disclaimer").textContent = data.disclaimer || "";
       if ((data.routes || []).some((r) => r.plan_view_svg)) {
-        toast("已生成工艺图纸（含俯视图、基准面、粗糙度）");
+        toast("已生成工艺图纸（服务端：俯视图、基准、粗糙度）");
       } else {
-        toast("路线已生成，但未检测到图纸模块 — 请重启 start.bat 后 Ctrl+F5", true);
+        toast("已生成二维示意图 + 工艺路线（前端绘制，Ctrl+F5 后可见）");
       }
     } catch (err) {
       toast(err.message, true);
