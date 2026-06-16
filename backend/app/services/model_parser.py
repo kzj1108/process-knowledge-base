@@ -1,25 +1,75 @@
-"""三维模型（STL/OBJ）轻量解析 — 识别块体/带孔件/齿轮等形状特征。"""
+"""三维模型（STL/OBJ/STEP/IGES）解析 — 网格估算或 CAD 精确几何。"""
 
 from __future__ import annotations
 
 import math
 import struct
 import statistics
+import zipfile
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+from app.services.model_parser_cad import cad_formats_available, parse_cad_file
 
-def parse_model_file(content: bytes, filename: str) -> dict[str, Any]:
+CAD_EXT = {".step", ".stp", ".iges", ".igs"}
+MESH_EXT = {".stl", ".obj", ".ply", ".3mf"}
+
+
+def supported_formats() -> dict[str, Any]:
+    return {
+        "mesh": sorted(MESH_EXT),
+        "cad": sorted(CAD_EXT),
+        "cad_available": cad_formats_available(),
+        "recommended": "STEP (.step/.stp) — 尺寸与孔径最准确",
+        "notes": [
+            "STL/OBJ 仅为三角网格，无单位、孔径为估算",
+            "STEP/IGES 为 CAD 实体，可精确读取包围盒与圆柱孔",
+        ],
+    }
+
+
+def parse_model_file(content: bytes, filename: str, unit_scale: float | None = None) -> dict[str, Any]:
     ext = Path(filename).suffix.lower()
+    if ext in CAD_EXT:
+        return parse_cad_file(content, filename)
+    if ext == ".3mf":
+        return _parse_3mf(content, filename, unit_scale)
+    if ext in (".stl", ".obj", ".ply"):
+        return _parse_mesh(content, filename, ext, unit_scale)
+    raise ValueError(
+        f"暂不支持 {ext} 格式。可用: {', '.join(sorted(MESH_EXT | CAD_EXT))}"
+    )
+
+
+def _parse_mesh(content: bytes, filename: str, ext: str, unit_scale: float | None) -> dict[str, Any]:
     if ext == ".stl":
         vertices = _parse_stl(content)
     elif ext == ".obj":
         vertices = _parse_obj(content)
+    elif ext == ".ply":
+        vertices = _parse_ply(content)
     else:
-        raise ValueError(f"暂不支持 {ext} 格式，请上传 STL 或 OBJ 文件")
+        raise ValueError(f"不支持的网格格式 {ext}")
 
     if len(vertices) < 3:
         raise ValueError("模型顶点数过少，无法分析")
+
+    bbox_raw = _bounding_box(vertices)
+    dims_raw = {
+        "length_x": bbox_raw["xmax"] - bbox_raw["xmin"],
+        "length_y": bbox_raw["ymax"] - bbox_raw["ymin"],
+        "length_z": bbox_raw["zmax"] - bbox_raw["zmin"],
+    }
+
+    if unit_scale is not None and unit_scale > 0:
+        scale = float(unit_scale)
+        unit_note = f"用户指定换算 ×{scale}"
+    else:
+        scale, unit_note = _infer_unit_scale(dims_raw)
+
+    if abs(scale - 1.0) > 1e-9:
+        vertices = [(v[0] * scale, v[1] * scale, v[2] * scale) for v in vertices]
 
     bbox = _bounding_box(vertices)
     dims = {
@@ -34,10 +84,20 @@ def parse_model_file(content: bytes, filename: str) -> dict[str, Any]:
     result: dict[str, Any] = {
         "filename": filename,
         "format": ext.lstrip("."),
+        "format_family": "mesh",
         "vertex_count": len(vertices),
         "triangle_count": len(vertices) // 3,
         "bbox": bbox,
         "dimensions_mm": dims,
+        "size_x_mm": dims["length_x"],
+        "size_y_mm": dims["length_y"],
+        "size_z_mm": dims["length_z"],
+        "unit_scale_applied": scale,
+        "unit_note": unit_note,
+        "dimension_note": (
+            "尺寸来自 STL/OBJ 三角网格包围盒（无精确特征）。"
+            "建议导出 STEP 以获得准确长宽高与孔径；若与 CAD 不符请选择正确单位。"
+        ),
         "part_type": part_type,
         "shape_hint": geo["shape_hint"],
         "flat_face_ratio": geo["flat_face_ratio"],
@@ -55,6 +115,7 @@ def parse_model_file(content: bytes, filename: str) -> dict[str, Any]:
         result["width_mm"] = geo.get("width_mm")
         result["height_mm"] = geo.get("height_mm")
         result["hole_diameter_mm"] = geo.get("hole_diameter_mm")
+        result["hole_is_estimated"] = geo.get("hole_is_estimated", True)
     elif part_type in ("块体件", "箱体件"):
         result["length_mm"] = geo.get("length_mm")
         result["width_mm"] = geo.get("width_mm")
@@ -68,6 +129,144 @@ def parse_model_file(content: bytes, filename: str) -> dict[str, Any]:
         result["height_mm"] = geo.get("height_mm")
 
     return result
+
+
+def _parse_3mf(content: bytes, filename: str, unit_scale: float | None) -> dict[str, Any]:
+    """3MF 含 unit 元数据，比 STL 更可靠。"""
+    scale = 1.0
+    unit_note = "3MF 默认 mm"
+    try:
+        with zipfile.ZipFile(BytesIO(content)) as zf:
+            xml_name = next((n for n in zf.namelist() if n.endswith(".model")), None)
+            if xml_name:
+                xml_text = zf.read(xml_name).decode("utf-8", errors="ignore")
+                if 'unit="centimeter"' in xml_text or "unit='centimeter'" in xml_text:
+                    scale = 10.0
+                    unit_note = "3MF 单位为 cm，已×10 为 mm"
+                elif 'unit="meter"' in xml_text:
+                    scale = 1000.0
+                    unit_note = "3MF 单位为 m，已×1000 为 mm"
+    except Exception:
+        pass
+    if unit_scale and unit_scale > 0:
+        scale = float(unit_scale)
+        unit_note = f"用户指定换算 ×{scale}"
+
+    vertices = _parse_3mf_mesh_vertices(content)
+    if len(vertices) < 3:
+        raise ValueError("3MF 文件中未找到有效网格顶点")
+
+    if abs(scale - 1.0) > 1e-9:
+        vertices = [(v[0] * scale, v[1] * scale, v[2] * scale) for v in vertices]
+
+    return _build_mesh_result(vertices, filename, ".3mf", 1.0, unit_note)
+
+
+def _parse_3mf_mesh_vertices(content: bytes) -> list[tuple[float, float, float]]:
+    """从 3MF 提取 vertex 坐标（简化解析）。"""
+    import re
+
+    verts: list[tuple[float, float, float]] = []
+    try:
+        with zipfile.ZipFile(BytesIO(content)) as zf:
+            for name in zf.namelist():
+                if not name.endswith(".model"):
+                    continue
+                text = zf.read(name).decode("utf-8", errors="ignore")
+                for m in re.finditer(r'<vertex\s+x="([^"]+)"\s+y="([^"]+)"\s+z="([^"]+)"', text):
+                    verts.append((float(m.group(1)), float(m.group(2)), float(m.group(3))))
+    except Exception:
+        pass
+    return verts
+
+
+def _build_mesh_result(
+    vertices: list[tuple[float, float, float]],
+    filename: str,
+    ext: str,
+    scale: float,
+    unit_note: str,
+) -> dict[str, Any]:
+    bbox = _bounding_box(vertices)
+    dims = {
+        "length_x": round(bbox["xmax"] - bbox["xmin"], 3),
+        "length_y": round(bbox["ymax"] - bbox["ymin"], 3),
+        "length_z": round(bbox["zmax"] - bbox["zmin"], 3),
+    }
+    geo = _analyze_geometry(vertices, bbox, dims, filename)
+    part_type = geo["part_type"]
+    result: dict[str, Any] = {
+        "filename": filename,
+        "format": ext.lstrip("."),
+        "format_family": "mesh",
+        "vertex_count": len(vertices),
+        "triangle_count": len(vertices) // 3,
+        "bbox": bbox,
+        "dimensions_mm": dims,
+        "size_x_mm": dims["length_x"],
+        "size_y_mm": dims["length_y"],
+        "size_z_mm": dims["length_z"],
+        "unit_scale_applied": scale,
+        "unit_note": unit_note,
+        "dimension_note": (
+            "网格模型尺寸为估算。推荐从 CAD 另存 STEP (.step) 上传以获取精确数据。"
+        ),
+        "part_type": part_type,
+        "shape_hint": geo["shape_hint"],
+        "flat_face_ratio": geo["flat_face_ratio"],
+        "recognition_confidence": geo.get("recognition_confidence", 0.75),
+        "material_hint": _material_from_filename(filename),
+    }
+    _attach_type_dims(result, geo, part_type)
+    return result
+
+
+def _attach_type_dims(result: dict[str, Any], geo: dict[str, Any], part_type: str) -> None:
+    if part_type == "齿轮":
+        result["outer_diameter_mm"] = geo.get("outer_diameter_mm")
+        result["face_width_mm"] = geo.get("face_width_mm")
+        result["teeth_z"] = geo.get("teeth_z")
+        result["module_m"] = geo.get("module_m")
+    elif part_type == "块体（带圆柱孔）":
+        result["length_mm"] = geo.get("length_mm")
+        result["width_mm"] = geo.get("width_mm")
+        result["height_mm"] = geo.get("height_mm")
+        result["hole_diameter_mm"] = geo.get("hole_diameter_mm")
+        result["hole_is_estimated"] = geo.get("hole_is_estimated", True)
+    elif part_type in ("块体件", "箱体件", "曲面件"):
+        result["length_mm"] = geo.get("length_mm")
+        result["width_mm"] = geo.get("width_mm")
+        result["height_mm"] = geo.get("height_mm")
+    elif part_type == "轴类":
+        result["length_mm"] = geo.get("length_mm")
+        result["diameter_mm"] = geo.get("diameter_mm")
+
+
+def _infer_unit_scale(dims: dict[str, float]) -> tuple[float, str]:
+    """STL 无单位：按包围盒量级推断 m / cm / inch / mm。"""
+    lx, ly, lz = dims["length_x"], dims["length_y"], dims["length_z"]
+    mx = max(lx, ly, lz)
+    if mx <= 0:
+        return 1.0, "假定 mm"
+
+    if mx < 0.2:
+        return 1000.0, "检测到米(m)单位，已×1000 换算为 mm"
+    if mx < 2.0:
+        return 1000.0, "检测到米(m)或小尺度单位，已×1000 换算为 mm"
+
+    scaled_mx = mx * 10
+    if mx < 25 and 12 <= scaled_mx <= 800:
+        return 10.0, "检测到厘米(cm)单位，已×10 换算为 mm"
+
+    if mx < 15 and abs(mx * 25.4 - round(mx * 25.4)) < 2:
+        inch_mm = mx * 25.4
+        if 10 <= inch_mm <= 800:
+            return 25.4, "检测到英寸(in)单位，已×25.4 换算为 mm"
+
+    if mx > 8000:
+        return 0.001, "检测到超大数值，已×0.001 换算为 mm"
+
+    return 1.0, "按 mm 解读（若尺寸偏小，请选手动单位 cm）"
 
 
 def _analyze_geometry(
@@ -88,17 +287,20 @@ def _analyze_geometry(
     if any(k in name for k in ("gear", "chi", "齿轮", "gearwheel")):
         return _as_gear(vertices, dims, flat_ratio, "文件名含齿轮关键字")
 
-    hole_d, hole_plane = _detect_cylindrical_hole(sample, bbox, lx, ly, lz)
+    hole_d, hole_plane, hole_est = _detect_cylindrical_hole(sample, bbox, lx, ly, lz)
     if hole_d and flat_ratio >= 0.15:
+        conf = 0.82 if hole_est else 0.88
+        hole_txt = f"约 Ø{hole_d} mm（估算）" if hole_est else f"Ø{hole_d} mm"
         return {
             "part_type": "块体（带圆柱孔）",
-            "shape_hint": f"检测到平面占比 {flat_ratio:.0%}，{hole_plane} 向圆柱孔约 Ø{hole_d} mm",
+            "shape_hint": f"块体+圆柱孔特征，{hole_plane}，孔径{hole_txt}",
             "flat_face_ratio": round(flat_ratio, 3),
-            "recognition_confidence": 0.88,
+            "recognition_confidence": conf,
             "length_mm": length,
             "width_mm": width,
             "height_mm": height,
             "hole_diameter_mm": hole_d,
+            "hole_is_estimated": hole_est,
         }
 
     if any(k in name for k in ("box", "block", "plate", "块", "板", "零件")):
@@ -205,8 +407,8 @@ def _detect_cylindrical_hole(
     lx: float,
     ly: float,
     lz: float,
-) -> tuple[float | None, str]:
-    """检测块体上的圆柱孔，返回 (孔径, 孔轴线方向说明)。"""
+) -> tuple[float | None, str, bool]:
+    """检测块体上的圆柱孔，返回 (孔径mm, 轴线说明, 是否仅为估算)。"""
     cx = (bbox["xmin"] + bbox["xmax"]) / 2
     cy = (bbox["ymin"] + bbox["ymax"]) / 2
     cz = (bbox["zmin"] + bbox["zmax"]) / 2
@@ -242,7 +444,9 @@ def _detect_cylindrical_hole(
             best_d = round(2 * inner_median, 3)
             best_label = label
 
-    return best_d, best_label
+    if best_d is None:
+        return None, "", True
+    return best_d, best_label, True
 
 
 def _is_gear_like(
@@ -354,6 +558,22 @@ def _parse_obj(content: bytes) -> list[tuple[float, float, float]]:
     return verts
 
 
+def _parse_ply(content: bytes) -> list[tuple[float, float, float]]:
+    text = content.decode("utf-8", errors="ignore")
+    if "end_header" not in text.lower():
+        return []
+    body = text.split("end_header", 1)[-1]
+    verts: list[tuple[float, float, float]] = []
+    for line in body.splitlines():
+        parts = line.split()
+        if len(parts) >= 3:
+            try:
+                verts.append((float(parts[0]), float(parts[1]), float(parts[2])))
+            except ValueError:
+                continue
+    return verts
+
+
 def _bounding_box(vertices: list[tuple[float, float, float]]) -> dict[str, float]:
     xs = [v[0] for v in vertices]
     ys = [v[1] for v in vertices]
@@ -384,6 +604,7 @@ def merge_features(
     module_m: float | None = None,
     heat_treatment: str | None = None,
     part_type: str | None = None,
+    unit_scale: float | None = None,
 ) -> dict[str, Any]:
     out = dict(parsed)
     out["material"] = material or parsed.get("material_hint") or "45钢"

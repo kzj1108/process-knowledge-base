@@ -796,6 +796,43 @@ th {
   margin-bottom: 10px;
 }
 
+.model3d-format-guide {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+  border: 1px solid #2563eb;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  max-width: 720px;
+}
+
+.model3d-format-guide strong {
+  color: #93c5fd;
+  font-size: 1rem;
+}
+
+.model3d-format-guide p {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.model3d-format-list {
+  font-size: 0.8rem !important;
+  color: #64748b !important;
+}
+
+.model3d-upload-badge {
+  display: inline-block;
+  margin: 0 0 10px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .model3d-sheet-btn {
   padding: 8px 14px;
   font-size: 0.85rem;

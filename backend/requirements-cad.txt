@@ -1,0 +1,2 @@
+# STEP/IGES 精确 CAD 解析（内网/本机安装，Render 免费版可不装）
+cadquery==2.4.0

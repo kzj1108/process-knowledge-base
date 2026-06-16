@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>工艺知识库管理系统</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260616" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260617" />
   </head>
   <body>
     <div id="login-screen">
@@ -317,15 +317,22 @@
 
         <section id="page-model3d" class="tab-page">
           <h1 class="page-title">三维模型智能工艺</h1>
-          <p class="hint">上传任意 STL/OBJ 模型 → 自动识别零件类型 → 推荐加工路线 → 生成可打印工艺路线图。</p>
+
+          <div class="model3d-format-guide">
+            <strong>推荐上传格式：STEP（.step / .stp）</strong>
+            <p>CAD 另存为 STEP 可精确读取长宽高、孔径；STL/OBJ 仅为网格估算，尺寸易偏差。</p>
+            <p class="model3d-format-list">也支持：IGES · 3MF · STL · OBJ · PLY（最大 30MB）</p>
+          </div>
 
           <form id="model3d-form" class="rec-form-panel model3d-form">
             <div class="model3d-upload" id="model3d-drop">
-              <input type="file" id="model3d-file" accept=".stl,.obj" hidden />
+              <input type="file" id="model3d-file" accept=".step,.stp,.iges,.igs,.3mf,.stl,.obj,.ply" hidden />
+              <p class="model3d-upload-badge">首选 STEP</p>
               <p class="model3d-upload-title">点击或拖拽上传三维模型</p>
-              <p class="model3d-upload-hint">支持 STL / OBJ，最大 20MB</p>
+              <p class="model3d-upload-hint">SolidWorks / CATIA / Fusion 请导出为 .step 文件</p>
               <p class="model3d-file-name" id="model3d-filename">未选择文件</p>
             </div>
+            <p class="hint" id="model3d-format-hint"></p>
             <div class="rec-field-row">
               <div class="rec-field">
                 <label>材料（可选）</label>
@@ -338,17 +345,27 @@
                 </select>
               </div>
               <div class="rec-field">
-                <label>零件类型（可选，覆盖自动识别）</label>
-                <select id="model3d-part-type">
+                <label>模型单位（尺寸不对时请改）</label>
+                <select id="model3d-unit">
                   <option value="">自动识别</option>
-                  <option value="块体件">块体件</option>
-                  <option value="块体（带圆柱孔）">块体（带圆柱孔）</option>
-                  <option value="齿轮">齿轮</option>
-                  <option value="轴类">轴类</option>
-                  <option value="箱体件">箱体件</option>
-                  <option value="曲面件">曲面件</option>
+                  <option value="1">已是 mm</option>
+                  <option value="10">厘米 cm → mm（×10）</option>
+                  <option value="1000">米 m → mm（×1000）</option>
+                  <option value="25.4">英寸 in → mm（×25.4）</option>
                 </select>
               </div>
+            </div>
+            <div class="rec-field">
+              <label>零件类型（可选，覆盖自动识别）</label>
+              <select id="model3d-part-type">
+                <option value="">自动识别</option>
+                <option value="块体件">块体件</option>
+                <option value="块体（带圆柱孔）">块体（带圆柱孔）</option>
+                <option value="齿轮">齿轮</option>
+                <option value="轴类">轴类</option>
+                <option value="箱体件">箱体件</option>
+                <option value="曲面件">曲面件</option>
+              </select>
             </div>
             <button type="submit" class="rec-submit-btn" id="model3d-submit">识别模型并生成工艺路线</button>
           </form>
@@ -415,7 +432,7 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/assets/app.js?v=20260616"></script>
-    <script src="/assets/app-extra.js?v=20260616"></script>
+    <script src="/assets/app.js?v=20260617"></script>
+    <script src="/assets/app-extra.js?v=20260617"></script>
   </body>
 </html>

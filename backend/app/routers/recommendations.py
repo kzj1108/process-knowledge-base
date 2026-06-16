@@ -8,15 +8,15 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from app.db import get_db
 from app.models import RecommendConfirmIn, RecommendIn
 from app.services.audit import write_audit
-from app.services.model_parser import merge_features, parse_model_file
+from app.services.model_parser import merge_features, parse_model_file, supported_formats
 from app.services.recommendation import confirm_recommendation, get_recommendation, recommend_process
 from app.services.route_recommender import recommend_routes_from_features
 from app.utils import require_api_key
 
 router = APIRouter(prefix="/api/v1/recommendations", tags=["工艺方案推荐"])
 
-ALLOWED_MODEL_EXT = {".stl", ".obj"}
-MAX_MODEL_BYTES = 20 * 1024 * 1024
+ALLOWED_MODEL_EXT = {".stl", ".obj", ".ply", ".3mf", ".step", ".stp", ".iges", ".igs"}
+MAX_MODEL_BYTES = 30 * 1024 * 1024
 
 
 @router.post("/process", dependencies=[Depends(require_api_key)])
@@ -32,6 +32,11 @@ async def api_recommend_process(body: RecommendIn):
     return result
 
 
+@router.get("/supported-formats")
+async def api_supported_model_formats():
+    return supported_formats()
+
+
 @router.post("/from-model", dependencies=[Depends(require_api_key)])
 async def api_recommend_from_model(
     file: UploadFile = File(..., description="STL 或 OBJ 三维模型"),
@@ -40,6 +45,7 @@ async def api_recommend_from_model(
     module_m: Optional[float] = Form(None),
     heat_treatment: Optional[str] = Form(None),
     part_type: Optional[str] = Form(None, description="手动指定零件类型，覆盖自动识别"),
+    unit_scale: Optional[float] = Form(None, description="尺寸换算系数：10=cm转mm，1000=m转mm，25.4=英寸转mm"),
     route_count: int = Form(3, ge=1, le=5),
 ):
     filename = file.filename or "model.stl"
@@ -49,12 +55,12 @@ async def api_recommend_from_model(
 
     content = await file.read()
     if len(content) > MAX_MODEL_BYTES:
-        raise HTTPException(400, "模型文件不能超过 20MB")
+        raise HTTPException(400, "模型文件不能超过 30MB")
     if not content:
         raise HTTPException(400, "文件为空")
 
     try:
-        parsed = parse_model_file(content, filename)
+        parsed = parse_model_file(content, filename, unit_scale=unit_scale)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 

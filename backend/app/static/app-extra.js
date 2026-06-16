@@ -453,27 +453,37 @@ function renderModelFeatures(f) {
   const pt = f.part_type || "";
   const conf =
     f.recognition_confidence != null ? `${Math.round(f.recognition_confidence * 100)}%` : "-";
-  let fields = "";
+  const unitNote = f.unit_note ? `<p class="hint">${esc(f.unit_note)}</p>` : "";
+  const dimNote = f.dimension_note
+    ? `<p class="hint" style="color:#fbbf24">${esc(f.dimension_note)}</p>`
+    : "";
+  const fmtBadge =
+    f.format_family === "cad_brep"
+      ? '<span class="model3d-tag" style="margin-left:8px">CAD 精确</span>'
+      : '<span class="model3d-tag" style="margin-left:8px;background:#374151">网格估算</span>';
+
+  const sx = f.size_x_mm ?? f.dimensions_mm?.length_x ?? "-";
+  const sy = f.size_y_mm ?? f.dimensions_mm?.length_y ?? "-";
+  const sz = f.size_z_mm ?? f.dimensions_mm?.length_z ?? "-";
+
+  let fields = `
+    <div class="item"><div class="k">X 方向 (mm)</div><div class="v">${sx}</div></div>
+    <div class="item"><div class="k">Y 方向 (mm)</div><div class="v">${sy}</div></div>
+    <div class="item"><div class="k">Z 方向 (mm)</div><div class="v">${sz}</div></div>`;
+
   if (pt === "齿轮") {
-    fields = `
-      <div class="item"><div class="k">外径 (mm)</div><div class="v">${f.outer_diameter_mm ?? "-"}</div></div>
-      <div class="item"><div class="k">齿宽 (mm)</div><div class="v">${f.face_width_mm ?? "-"}</div></div>
-      <div class="item"><div class="k">估算模数</div><div class="v">${f.module_m != null ? "M" + f.module_m : "-"}</div></div>
+    fields += `
+      <div class="item"><div class="k">估算外径 (mm)</div><div class="v">${f.outer_diameter_mm ?? "-"}</div></div>
       <div class="item"><div class="k">估算齿数</div><div class="v">${f.teeth_z ?? "-"}</div></div>`;
   } else if (pt === "块体（带圆柱孔）") {
-    fields = `
-      <div class="item"><div class="k">长度 (mm)</div><div class="v">${f.length_mm ?? "-"}</div></div>
-      <div class="item"><div class="k">宽度 (mm)</div><div class="v">${f.width_mm ?? "-"}</div></div>
-      <div class="item"><div class="k">高度 (mm)</div><div class="v">${f.height_mm ?? "-"}</div></div>
-      <div class="item"><div class="k">孔径 (mm)</div><div class="v">${f.hole_diameter_mm != null ? "Ø" + f.hole_diameter_mm : "-"}</div></div>`;
-  } else {
-    fields = `
-      <div class="item"><div class="k">长度 (mm)</div><div class="v">${f.length_mm ?? f.dimensions_mm?.length_x ?? "-"}</div></div>
-      <div class="item"><div class="k">宽度 (mm)</div><div class="v">${f.width_mm ?? f.dimensions_mm?.length_y ?? "-"}</div></div>
-      <div class="item"><div class="k">高度 (mm)</div><div class="v">${f.height_mm ?? f.dimensions_mm?.length_z ?? "-"}</div></div>`;
+    const hole = f.hole_diameter_mm != null ? (f.hole_is_estimated ? `约 Ø${f.hole_diameter_mm}` : `Ø${f.hole_diameter_mm}`) : "-";
+    fields += `<div class="item"><div class="k">孔径 (mm)</div><div class="v">${hole}</div></div>`;
   }
+
   el.innerHTML = `
-    <h3>模型识别结果</h3>
+    <h3>模型识别结果 ${fmtBadge}</h3>
+    ${dimNote}
+    ${unitNote}
     <p class="hint">${esc(f.shape_hint || "")}</p>
     <div class="detail-meta">
       <div class="item"><div class="k">零件类型</div><div class="v">${esc(pt || "-")}</div></div>
@@ -547,6 +557,22 @@ function loadModel3d() {
   if (!form || form.dataset.bound) return;
   form.dataset.bound = "1";
 
+  fetch("/api/v1/recommendations/supported-formats")
+    .then((r) => r.json())
+    .then((d) => {
+      const el = document.getElementById("model3d-format-hint");
+      if (!el) return;
+      if (d.cad_available) {
+        el.textContent = "✓ 服务器已支持 STEP/IGES 精确解析，请优先上传 .step 文件";
+        el.style.color = "#86efac";
+      } else {
+        el.textContent =
+          "当前服务器未装 CAD 库，STEP 暂不可用；请用 STL 并选手动单位，或在内网执行 pip install -r requirements-cad.txt";
+        el.style.color = "#fbbf24";
+      }
+    })
+    .catch(() => {});
+
   const setFileName = (name) => {
     const el = document.getElementById("model3d-filename");
     if (el) el.textContent = name || "未选择文件";
@@ -586,8 +612,10 @@ function loadModel3d() {
     fd.append("file", file);
     const mat = document.getElementById("model3d-material")?.value;
     const ptype = document.getElementById("model3d-part-type")?.value;
+    const unit = document.getElementById("model3d-unit")?.value;
     if (mat) fd.append("material", mat);
     if (ptype) fd.append("part_type", ptype);
+    if (unit) fd.append("unit_scale", unit);
     fd.append("route_count", "3");
 
     const key = sessionStorage.getItem(STORAGE_KEY);
