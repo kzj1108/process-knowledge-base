@@ -438,14 +438,32 @@ function loadIntegration() {
 function renderModelFeatures(f) {
   const el = document.getElementById("model3d-features");
   if (!el || !f) return;
-  el.innerHTML = `
-    <h3>模型识别特征</h3>
-    <div class="detail-meta">
-      <div class="item"><div class="k">零件类型</div><div class="v">${esc(f.part_type || "-")}</div></div>
+  const pt = f.part_type || "";
+  let fields = "";
+  if (pt === "齿轮") {
+    fields = `
       <div class="item"><div class="k">外径 (mm)</div><div class="v">${f.outer_diameter_mm ?? "-"}</div></div>
       <div class="item"><div class="k">齿宽 (mm)</div><div class="v">${f.face_width_mm ?? "-"}</div></div>
       <div class="item"><div class="k">估算模数</div><div class="v">${f.module_m != null ? "M" + f.module_m : "-"}</div></div>
-      <div class="item"><div class="k">估算齿数</div><div class="v">${f.teeth_z ?? "-"}</div></div>
+      <div class="item"><div class="k">估算齿数</div><div class="v">${f.teeth_z ?? "-"}</div></div>`;
+  } else if (pt === "块体（带圆柱孔）") {
+    fields = `
+      <div class="item"><div class="k">长度 (mm)</div><div class="v">${f.length_mm ?? "-"}</div></div>
+      <div class="item"><div class="k">宽度 (mm)</div><div class="v">${f.width_mm ?? "-"}</div></div>
+      <div class="item"><div class="k">高度 (mm)</div><div class="v">${f.height_mm ?? "-"}</div></div>
+      <div class="item"><div class="k">孔径 (mm)</div><div class="v">${f.hole_diameter_mm != null ? "Ø" + f.hole_diameter_mm : "-"}</div></div>`;
+  } else {
+    fields = `
+      <div class="item"><div class="k">长度 (mm)</div><div class="v">${f.length_mm ?? f.dimensions_mm?.length_x ?? "-"}</div></div>
+      <div class="item"><div class="k">宽度 (mm)</div><div class="v">${f.width_mm ?? f.dimensions_mm?.length_y ?? "-"}</div></div>
+      <div class="item"><div class="k">高度 (mm)</div><div class="v">${f.height_mm ?? f.dimensions_mm?.length_z ?? "-"}</div></div>`;
+  }
+  el.innerHTML = `
+    <h3>模型识别特征</h3>
+    <p class="hint">${esc(f.shape_hint || "")}</p>
+    <div class="detail-meta">
+      <div class="item"><div class="k">零件类型</div><div class="v">${esc(pt || "-")}</div></div>
+      ${fields}
       <div class="item"><div class="k">材料</div><div class="v">${esc(f.material || "-")}</div></div>
     </div>`;
 }

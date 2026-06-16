@@ -67,7 +67,7 @@ async def recommend_routes_from_features(
         "route_count": len(routes),
         "routes": routes,
         "similar_cases": similar,
-        "disclaimer": "路线由模型几何特征与历史工艺规则生成，正式下发前须工艺人员审核确认。",
+        "disclaimer": "路线根据模型几何形状自动匹配：块体/带孔件推荐铣削钻孔，齿轮才推荐滚齿。正式下发前须工艺人员确认。",
         "recommendation_id": base.get("id"),
     }
 
@@ -97,8 +97,12 @@ def _build_route_candidates(
     if part_type == "轴类":
         return _shaft_routes(cnc, cnc2, route_count)[:route_count]
 
-    if part_type == "回转体" and "箱" in str(features.get("filename", "")):
-        return _housing_routes(cnc2, route_count)[:route_count]
+    if part_type in ("块体件", "块体（带圆柱孔）", "箱体件"):
+        hole_d = features.get("hole_diameter_mm")
+        return _block_routes(cnc, cnc2, features, hole_d, route_count)[:route_count]
+
+    if part_type != "齿轮":
+        return _block_routes(cnc, cnc2, features, None, route_count)[:route_count]
 
     candidates: list[dict] = []
 
@@ -201,6 +205,139 @@ def _build_route_candidates(
     return candidates[:route_count]
 
 
+def _block_routes(
+    cnc: str,
+    cnc2: str,
+    features: dict[str, Any],
+    hole_d: float | None,
+    route_count: int,
+) -> list[dict]:
+    """块体 / 带圆柱孔块体的铣削、钻孔工艺路线。"""
+    hole_txt = f"Ø{hole_d} mm" if hole_d else "待确认"
+    candidates: list[dict] = []
+
+    if hole_d:
+        ops_a = [
+            _op(10, "装夹与找正", cnc2, None, None, None, None),
+            _op(20, "粗铣上下面", cnc2, 800, 600, 2.0, "T-FACE-50"),
+            _op(30, "精铣基准面", cnc2, 1200, 400, 0.4, "T-FACE-50"),
+            _op(40, "钻中心孔", cnc2, 2500, 120, None, "T-DRILL-CEN"),
+            _op(50, "钻孔", cnc2, 1800, 180, None, "T-DRILL-8"),
+            _op(60, "扩孔/镗孔", cnc2, 900, 80, 0.3, "T-BORE"),
+            _op(70, "去毛刺", "手工", None, None, None, None),
+        ]
+        candidates.append(
+            {
+                "route_id": "R-A",
+                "route_name": "标准铣钻镗路线",
+                "strategy": "效率优先",
+                "confidence": 0.88,
+                "description": f"粗铣 → 精铣 → 钻孔 → 镗孔（孔径 {hole_txt}）",
+                "flow_summary": _flow(ops_a),
+                "reference": "PART-HOUSING-003 类模板",
+                "operations": ops_a,
+            }
+        )
+        ops_b = [
+            _op(10, "装夹与找正", cnc2, None, None, None, None),
+            _op(20, "粗铣六面", cnc2, 750, 550, 2.5, "T-FACE-50"),
+            _op(30, "精铣各基准面", cnc2, 1100, 380, 0.35, "T-FACE-50"),
+            _op(40, "数控镗孔", cnc, 650, 60, 0.2, "T-BORE-NC"),
+            _op(50, "三坐标检测", "CMM", None, None, None, None),
+        ]
+        candidates.append(
+            {
+                "route_id": "R-B",
+                "route_name": "高精度镗孔路线",
+                "strategy": "质量优先",
+                "confidence": 0.84,
+                "description": f"铣削定基准后数控镗孔，适用于孔径 {hole_txt} 精度要求较高",
+                "flow_summary": _flow(ops_b),
+                "reference": "箱体/夹具块工艺规范",
+                "operations": ops_b,
+            }
+        )
+        ops_c = [
+            _op(10, "装夹", cnc2, None, None, None, None),
+            _op(20, "铣面", cnc2, 900, 650, 1.5, "T-FACE-50"),
+            _op(30, "钻孔", cnc2, 1600, 200, None, "T-DRILL-8"),
+            _op(40, "铰孔", cnc2, 400, 50, None, "T-REAM"),
+        ]
+        candidates.append(
+            {
+                "route_id": "R-C",
+                "route_name": "快速试制路线",
+                "strategy": "周期优先",
+                "confidence": 0.76,
+                "description": "铣面 → 钻孔 → 铰孔，试制件适用",
+                "flow_summary": _flow(ops_c),
+                "reference": "试制工艺模板",
+                "operations": ops_c,
+            }
+        )
+    else:
+        ops_a = [
+            _op(10, "装夹", cnc2, None, None, None, None),
+            _op(20, "粗铣平面", cnc2, 800, 600, 3.0, "T-FACE-50"),
+            _op(30, "精铣各面", cnc2, 1200, 400, 0.4, "T-FACE-50"),
+            _op(40, "去毛刺", "手工", None, None, None, None),
+        ]
+        candidates.append(
+            {
+                "route_id": "R-A",
+                "route_name": "块体铣削路线",
+                "strategy": "效率优先",
+                "confidence": 0.86,
+                "description": "粗铣 → 精铣 → 去毛刺",
+                "flow_summary": _flow(ops_a),
+                "reference": "PART-HOUSING-003",
+                "operations": ops_a,
+            }
+        )
+        ops_b = [
+            _op(10, "装夹", cnc2, None, None, None, None),
+            _op(20, "粗铣", cnc2, 850, 620, 2.8, "T-FACE-50"),
+            _op(30, "半精铣", cnc2, 1050, 450, 0.8, "T-FACE-50"),
+            _op(40, "精铣", cnc2, 1300, 350, 0.25, "T-FACE-50"),
+        ]
+        candidates.append(
+            {
+                "route_id": "R-B",
+                "route_name": "多序精铣路线",
+                "strategy": "质量优先",
+                "confidence": 0.82,
+                "description": "粗铣 → 半精铣 → 精铣",
+                "flow_summary": _flow(ops_b),
+                "reference": "平面度要求高时选用",
+                "operations": ops_b,
+            }
+        )
+        ops_c = [
+            _op(10, "装夹", cnc2, None, None, None, None),
+            _op(20, "粗铣", cnc2, 900, 700, 3.0, "T-FACE-50"),
+            _op(30, "精铣", cnc2, 1250, 420, 0.5, "T-FACE-50"),
+        ]
+        candidates.append(
+            {
+                "route_id": "R-C",
+                "route_name": "快速试制路线",
+                "strategy": "周期优先",
+                "confidence": 0.78,
+                "description": "粗铣 → 精铣两序",
+                "flow_summary": _flow(ops_c),
+                "reference": "试制模板",
+                "operations": ops_c,
+            }
+        )
+
+    hint = features.get("shape_hint")
+    if hint:
+        for r in candidates:
+            r["description"] += f"（{hint}）"
+
+    return candidates[:route_count]
+
+
 def _shaft_routes(cnc: str, cnc2: str, route_count: int) -> list[dict]:
     ops = [
         _op(10, "下料", cnc, None, None, None, None),
@@ -223,24 +360,7 @@ def _shaft_routes(cnc: str, cnc2: str, route_count: int) -> list[dict]:
 
 
 def _housing_routes(cnc: str, route_count: int) -> list[dict]:
-    ops = [
-        _op(10, "装夹", cnc, None, None, None, None),
-        _op(20, "粗铣平面", cnc, 800, 600, 3.0, "T-FACE-50"),
-        _op(30, "精铣密封面", cnc, 1200, 400, 0.4, "T-FACE-50"),
-        _op(40, "钻孔攻丝", cnc, 1500, 180, None, "T-DRILL-8"),
-    ]
-    return [
-        {
-            "route_id": "R-A",
-            "route_name": "箱体件标准路线",
-            "strategy": "效率优先",
-            "confidence": 0.84,
-            "description": "粗铣 → 精铣 → 钻孔攻丝",
-            "flow_summary": _flow(ops),
-            "reference": "PART-HOUSING-003",
-            "operations": ops,
-        }
-    ][:route_count]
+    return _block_routes(cnc, cnc, {}, None, route_count)
 
 
 def _flow(ops: list[dict]) -> str:
