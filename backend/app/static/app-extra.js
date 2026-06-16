@@ -435,10 +435,24 @@ function loadIntegration() {
   });
 }
 
+let lastModel3dResult = null;
+
+function openProcessSheet(html) {
+  const w = window.open("", "_blank");
+  if (!w) {
+    toast("请允许弹出窗口以查看工艺路线图", true);
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+}
+
 function renderModelFeatures(f) {
   const el = document.getElementById("model3d-features");
   if (!el || !f) return;
   const pt = f.part_type || "";
+  const conf =
+    f.recognition_confidence != null ? `${Math.round(f.recognition_confidence * 100)}%` : "-";
   let fields = "";
   if (pt === "齿轮") {
     fields = `
@@ -459,10 +473,11 @@ function renderModelFeatures(f) {
       <div class="item"><div class="k">高度 (mm)</div><div class="v">${f.height_mm ?? f.dimensions_mm?.length_z ?? "-"}</div></div>`;
   }
   el.innerHTML = `
-    <h3>模型识别特征</h3>
+    <h3>模型识别结果</h3>
     <p class="hint">${esc(f.shape_hint || "")}</p>
     <div class="detail-meta">
       <div class="item"><div class="k">零件类型</div><div class="v">${esc(pt || "-")}</div></div>
+      <div class="item"><div class="k">识别置信度</div><div class="v">${conf}</div></div>
       ${fields}
       <div class="item"><div class="k">材料</div><div class="v">${esc(f.material || "-")}</div></div>
     </div>`;
@@ -471,9 +486,10 @@ function renderModelFeatures(f) {
 function renderModelRoutes(data) {
   const wrap = document.getElementById("model3d-routes");
   if (!wrap) return;
+  lastModel3dResult = data;
   const routes = data.routes || [];
   wrap.innerHTML = routes
-    .map((r) => {
+    .map((r, idx) => {
       const ops = (r.operations || [])
         .map(
           (o) =>
@@ -487,6 +503,7 @@ function renderModelRoutes(data) {
             </tr>`
         )
         .join("");
+      const diagram = r.flow_diagram_svg || "";
       return `
         <div class="model3d-route-card">
           <div class="model3d-route-head">
@@ -497,6 +514,12 @@ function renderModelRoutes(data) {
             <span class="model3d-conf">置信度 ${Math.round((r.confidence || 0) * 100)}%</span>
           </div>
           <div class="model3d-flow">${esc(r.flow_summary || r.description || "")}</div>
+          ${diagram ? `<div class="model3d-diagram">${diagram}</div>` : ""}
+          <div class="model3d-actions">
+            <button type="button" class="secondary model3d-sheet-btn" data-route-idx="${idx}">
+              查看 / 打印工艺路线图
+            </button>
+          </div>
           <p class="hint">参考：${esc(r.reference || "-")}</p>
           <table>
             <thead><tr><th>工序号</th><th>工序名称</th><th>设备</th><th>刀具</th><th>转速</th><th>进给</th></tr></thead>
@@ -505,6 +528,16 @@ function renderModelRoutes(data) {
         </div>`;
     })
     .join("");
+
+  wrap.querySelectorAll(".model3d-sheet-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.routeIdx, 10);
+      const route = lastModel3dResult?.routes?.[idx];
+      const html = route?.process_sheet_html;
+      if (html) openProcessSheet(html);
+      else toast("工艺路线图不可用", true);
+    });
+  });
 }
 
 function loadModel3d() {
@@ -552,9 +585,9 @@ function loadModel3d() {
     const fd = new FormData();
     fd.append("file", file);
     const mat = document.getElementById("model3d-material")?.value;
-    const teeth = document.getElementById("model3d-teeth")?.value;
+    const ptype = document.getElementById("model3d-part-type")?.value;
     if (mat) fd.append("material", mat);
-    if (teeth) fd.append("teeth_z", teeth);
+    if (ptype) fd.append("part_type", ptype);
     fd.append("route_count", "3");
 
     const key = sessionStorage.getItem(STORAGE_KEY);
@@ -577,7 +610,7 @@ function loadModel3d() {
       renderModelFeatures(data.model_features);
       renderModelRoutes(data);
       document.getElementById("model3d-disclaimer").textContent = data.disclaimer || "";
-      toast(`已生成 ${data.route_count || 0} 条工艺路线`);
+      toast(`已识别「${data.model_features?.part_type || "零件"}」，生成 ${data.route_count || 0} 条路线`);
     } catch (err) {
       toast(err.message, true);
     } finally {

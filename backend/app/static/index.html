@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>工艺知识库管理系统</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260520" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260616" />
   </head>
   <body>
     <div id="login-screen">
@@ -316,8 +316,8 @@
         </section>
 
         <section id="page-model3d" class="tab-page">
-          <h1 class="page-title">三维模型工艺路线推荐</h1>
-          <p class="hint">导入 STL/OBJ 三维模型，自动识别零件特征并推荐多条完整加工路线（如粗铣 → 精铣 → 滚齿 → 去毛刺）。</p>
+          <h1 class="page-title">三维模型智能工艺</h1>
+          <p class="hint">上传任意 STL/OBJ 模型 → 自动识别零件类型 → 推荐加工路线 → 生成可打印工艺路线图。</p>
 
           <form id="model3d-form" class="rec-form-panel model3d-form">
             <div class="model3d-upload" id="model3d-drop">
@@ -328,7 +328,7 @@
             </div>
             <div class="rec-field-row">
               <div class="rec-field">
-                <label>材料（可选，覆盖自动识别）</label>
+                <label>材料（可选）</label>
                 <select id="model3d-material">
                   <option value="">自动</option>
                   <option value="42CrMo">42CrMo</option>
@@ -338,11 +338,19 @@
                 </select>
               </div>
               <div class="rec-field">
-                <label>齿数（可选）</label>
-                <input id="model3d-teeth" type="number" placeholder="自动估算" />
+                <label>零件类型（可选，覆盖自动识别）</label>
+                <select id="model3d-part-type">
+                  <option value="">自动识别</option>
+                  <option value="块体件">块体件</option>
+                  <option value="块体（带圆柱孔）">块体（带圆柱孔）</option>
+                  <option value="齿轮">齿轮</option>
+                  <option value="轴类">轴类</option>
+                  <option value="箱体件">箱体件</option>
+                  <option value="曲面件">曲面件</option>
+                </select>
               </div>
             </div>
-            <button type="submit" class="rec-submit-btn" id="model3d-submit">分析模型并推荐路线</button>
+            <button type="submit" class="rec-submit-btn" id="model3d-submit">识别模型并生成工艺路线</button>
           </form>
 
           <div id="model3d-output" class="hidden">
@@ -407,7 +415,7 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/assets/app.js?v=20260520"></script>
-    <script src="/assets/app-extra.js?v=20260520"></script>
+    <script src="/assets/app.js?v=20260616"></script>
+    <script src="/assets/app-extra.js?v=20260616"></script>
   </body>
 </html>

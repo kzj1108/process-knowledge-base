@@ -39,6 +39,7 @@ async def api_recommend_from_model(
     teeth_z: Optional[int] = Form(None),
     module_m: Optional[float] = Form(None),
     heat_treatment: Optional[str] = Form(None),
+    part_type: Optional[str] = Form(None, description="手动指定零件类型，覆盖自动识别"),
     route_count: int = Form(3, ge=1, le=5),
 ):
     filename = file.filename or "model.stl"
@@ -63,6 +64,7 @@ async def api_recommend_from_model(
         teeth_z=teeth_z,
         module_m=module_m,
         heat_treatment=heat_treatment,
+        part_type=part_type,
     )
 
     db = await get_db()

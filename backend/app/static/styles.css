@@ -783,3 +783,20 @@ th {
   line-height: 1.6;
   word-break: break-all;
 }
+
+.model3d-diagram {
+  overflow-x: auto;
+  padding: 8px 0 12px;
+  background: #0a0e14;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.model3d-actions {
+  margin-bottom: 10px;
+}
+
+.model3d-sheet-btn {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+}

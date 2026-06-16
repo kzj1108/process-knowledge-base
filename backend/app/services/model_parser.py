@@ -41,6 +41,7 @@ def parse_model_file(content: bytes, filename: str) -> dict[str, Any]:
         "part_type": part_type,
         "shape_hint": geo["shape_hint"],
         "flat_face_ratio": geo["flat_face_ratio"],
+        "recognition_confidence": geo.get("recognition_confidence", 0.75),
         "material_hint": _material_from_filename(filename),
     }
 
@@ -61,6 +62,10 @@ def parse_model_file(content: bytes, filename: str) -> dict[str, Any]:
     elif part_type == "轴类":
         result["length_mm"] = geo.get("length_mm")
         result["diameter_mm"] = geo.get("diameter_mm")
+    elif part_type == "曲面件":
+        result["length_mm"] = geo.get("length_mm")
+        result["width_mm"] = geo.get("width_mm")
+        result["height_mm"] = geo.get("height_mm")
 
     return result
 
@@ -89,6 +94,7 @@ def _analyze_geometry(
             "part_type": "块体（带圆柱孔）",
             "shape_hint": f"检测到平面占比 {flat_ratio:.0%}，{hole_plane} 向圆柱孔约 Ø{hole_d} mm",
             "flat_face_ratio": round(flat_ratio, 3),
+            "recognition_confidence": 0.88,
             "length_mm": length,
             "width_mm": width,
             "height_mm": height,
@@ -147,13 +153,28 @@ def _analyze_geometry(
 
     # 齿轮：圆形截面 + 齿形半径波动 + 非块体
     if _is_gear_like(sample, bbox, lx, ly, flat_ratio):
-        return _as_gear(vertices, dims, flat_ratio, "圆形齿形特征")
+        g = _as_gear(vertices, dims, flat_ratio, "圆形齿形特征")
+        g["recognition_confidence"] = 0.84
+        return g
+
+    # 曲面件：自由曲面、低平面占比
+    if flat_ratio < 0.12 and length / max(height, 0.001) < 2.2:
+        return {
+            "part_type": "曲面件",
+            "shape_hint": f"自由曲面特征（平面占比 {flat_ratio:.0%}），建议五轴加工",
+            "flat_face_ratio": round(flat_ratio, 3),
+            "recognition_confidence": 0.80,
+            "length_mm": length,
+            "width_mm": width,
+            "height_mm": height,
+        }
 
     # 默认块体，避免误推滚齿
     return {
         "part_type": "块体件",
         "shape_hint": f"未识别齿形，按块体件处理（平面占比 {flat_ratio:.0%}）",
         "flat_face_ratio": round(flat_ratio, 3),
+        "recognition_confidence": 0.68,
         "length_mm": length,
         "width_mm": width,
         "height_mm": height,
@@ -362,11 +383,16 @@ def merge_features(
     teeth_z: int | None = None,
     module_m: float | None = None,
     heat_treatment: str | None = None,
+    part_type: str | None = None,
 ) -> dict[str, Any]:
     out = dict(parsed)
     out["material"] = material or parsed.get("material_hint") or "45钢"
 
-    if teeth_z and parsed.get("part_type") == "齿轮":
+    if part_type:
+        out["part_type"] = part_type
+        out["shape_hint"] = (parsed.get("shape_hint") or "") + "（用户指定类型覆盖）"
+
+    if teeth_z and out.get("part_type") == "齿轮":
         out["teeth_z"] = int(teeth_z)
         od = parsed.get("outer_diameter_mm") or 0
         if od and not module_m:

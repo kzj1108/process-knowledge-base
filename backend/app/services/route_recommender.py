@@ -6,6 +6,7 @@ from typing import Any
 
 import aiosqlite
 
+from app.services.process_sheet import attach_process_sheets
 from app.services.recommendation import _calc_demo_params, recommend_process
 from app.utils import row_to_dict
 
@@ -55,7 +56,7 @@ async def recommend_routes_from_features(
         route_count=route_count,
     )
 
-    return {
+    result = {
         "model_features": features,
         "criteria": criteria,
         "base_recommendation": {
@@ -67,9 +68,10 @@ async def recommend_routes_from_features(
         "route_count": len(routes),
         "routes": routes,
         "similar_cases": similar,
-        "disclaimer": "路线根据模型几何形状自动匹配：块体/带孔件推荐铣削钻孔，齿轮才推荐滚齿。正式下发前须工艺人员确认。",
+        "disclaimer": "系统根据模型形状自动匹配工艺类型并生成路线图纸，正式下发前须工艺人员审核确认。",
         "recommendation_id": base.get("id"),
     }
+    return attach_process_sheets(result)
 
 
 def _build_route_candidates(
@@ -96,6 +98,9 @@ def _build_route_candidates(
 
     if part_type == "轴类":
         return _shaft_routes(cnc, cnc2, route_count)[:route_count]
+
+    if part_type == "曲面件":
+        return _surface_routes(cnc, route_count)[:route_count]
 
     if part_type in ("块体件", "块体（带圆柱孔）", "箱体件"):
         hole_d = features.get("hole_diameter_mm")
@@ -203,6 +208,28 @@ def _build_route_candidates(
         candidates[0]["confidence"] = 0.86
 
     return candidates[:route_count]
+
+
+def _surface_routes(cnc: str, route_count: int) -> list[dict]:
+    ops = [
+        _op(10, "装夹与找正", cnc, None, None, None, None),
+        _op(20, "粗加工型面", cnc, 5500, 320, 0.25, "T-BALL-10"),
+        _op(30, "半精加工型面", cnc, 6200, 280, 0.15, "T-BALL-6"),
+        _op(40, "精加工型面", cnc, 6800, 220, 0.08, "T-BALL-4"),
+        _op(50, "三坐标检测", "CMM", None, None, None, None),
+    ]
+    return [
+        {
+            "route_id": "R-A",
+            "route_name": "五轴曲面加工路线",
+            "strategy": "曲面优先",
+            "confidence": 0.83,
+            "description": "粗铣型面 → 半精 → 精铣 → 检测",
+            "flow_summary": _flow(ops),
+            "reference": "PART-TURBINE-005",
+            "operations": ops,
+        }
+    ][:route_count]
 
 
 def _block_routes(
