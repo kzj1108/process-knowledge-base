@@ -22,6 +22,7 @@ async def integration_catalog() -> Dict[str, Any]:
         {"code": "INT-10", "method": "GET", "path": "/health", "desc": "健康检查"},
         {"code": "INT-11", "method": "POST", "path": "/api/v1/recommendations/process", "desc": "工艺方案推荐"},
         {"code": "INT-12", "method": "POST", "path": "/api/v1/quality-records", "desc": "质量记录同步"},
+        {"code": "INT-13", "method": "POST", "path": "/api/v1/recommendations/from-model", "desc": "三维模型→多条工艺路线推荐"},
     ]
     return {
         "platform_name": "数控滚齿加工单元工艺知识库",

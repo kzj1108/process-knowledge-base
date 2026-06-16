@@ -62,6 +62,7 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
     showPage(page);
     if (page === "dashboard") loadDashboard();
     if (page === "recommend" && typeof loadRecommend === "function") loadRecommend();
+    if (page === "model3d" && typeof loadModel3d === "function") loadModel3d();
     if (page === "knowledge") loadKnowledge();
     if (page === "process") loadProcess();
     if (page === "parts") {

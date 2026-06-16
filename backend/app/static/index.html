@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>工艺知识库管理系统</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260519" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260520" />
   </head>
   <body>
     <div id="login-screen">
@@ -34,6 +34,7 @@
         <p class="sub-hint">实施方案5 · 滚齿单元</p>
         <button class="nav-btn active" data-page="dashboard">总览</button>
         <button class="nav-btn" data-page="recommend">方案推荐</button>
+        <button class="nav-btn" data-page="model3d">三维工艺</button>
         <button class="nav-btn" data-page="knowledge">知识条目</button>
         <button class="nav-btn" data-page="process">静态工艺</button>
         <button class="nav-btn" data-page="parts">零件主数据</button>
@@ -270,33 +271,9 @@
 
         <section id="page-recommend" class="tab-page">
           <h1 class="page-title">工艺方案推荐</h1>
-          <p class="hint">输入零件材料与齿轮参数，系统按规则+历史案例输出设备、转速、进给与风险提示（需工艺人员确认）。</p>
+          <p class="hint">输入材料、模数、齿数，快速给出设备与切削参数建议。</p>
 
-          <div id="rec-output" class="rec-output hidden">
-            <div class="rec-summary">
-              <div class="rec-summary-item">
-                <span class="k">推荐设备</span>
-                <span class="v" id="rec-out-equip">—</span>
-              </div>
-              <div class="rec-summary-item accent">
-                <span class="k">匹配置信度</span>
-                <span class="v" id="rec-out-conf">—</span>
-              </div>
-            </div>
-            <table class="rec-table">
-              <thead>
-                <tr><th>类别</th><th>项目/案例</th><th>计算值/结果</th><th>工业备注</th></tr>
-              </thead>
-              <tbody id="rec-detail-tbody"></tbody>
-            </table>
-            <p class="hint" id="rec-disclaimer"></p>
-          </div>
-
-          <form id="rec-form" class="rec-form-panel">
-            <div class="rec-field">
-              <label>零件号（可选，有则优先匹配历史工艺）</label>
-              <input id="rec-part" placeholder="如 GH-2024-088" />
-            </div>
+          <form id="rec-form" class="rec-form-panel rec-form-simple">
             <div class="rec-field">
               <label>材料</label>
               <select id="rec-material">
@@ -309,41 +286,70 @@
             <div class="rec-field-row">
               <div class="rec-field">
                 <label>模数</label>
-                <div class="stepper">
-                  <button type="button" class="stepper-btn" data-target="rec-module" data-delta="-0.25">−</button>
-                  <input id="rec-module" type="number" step="0.25" value="4.5" />
-                  <button type="button" class="stepper-btn" data-target="rec-module" data-delta="0.25">+</button>
-                </div>
+                <input id="rec-module" type="number" step="0.1" value="4.5" />
               </div>
               <div class="rec-field">
                 <label>齿数</label>
-                <div class="stepper">
-                  <button type="button" class="stepper-btn" data-target="rec-teeth" data-delta="-1">−</button>
-                  <input id="rec-teeth" type="number" value="40" />
-                  <button type="button" class="stepper-btn" data-target="rec-teeth" data-delta="1">+</button>
-                </div>
+                <input id="rec-teeth" type="number" value="40" />
               </div>
             </div>
-            <div class="rec-field">
-              <label>精度等级</label>
-              <div class="chip-group" id="rec-grade-chips">
-                <button type="button" class="chip active" data-value="6级">6级</button>
-                <button type="button" class="chip" data-value="7级">7级</button>
-                <button type="button" class="chip" data-value="8级">8级</button>
-              </div>
-              <input type="hidden" id="rec-grade" value="6级" />
-            </div>
-            <div class="rec-field">
-              <label>热处理状态</label>
-              <div class="chip-group" id="rec-heat-chips">
-                <button type="button" class="chip" data-value="调质">调质</button>
-                <button type="button" class="chip" data-value="正火">正火</button>
-                <button type="button" class="chip active" data-value="渗碳淬火">渗碳淬火</button>
-              </div>
-              <input type="hidden" id="rec-heat" value="渗碳淬火" />
-            </div>
-            <button type="submit" class="rec-submit-btn">生成推荐方案</button>
+            <button type="submit" class="rec-submit-btn">获取推荐</button>
           </form>
+
+          <div id="rec-output" class="rec-output rec-output-simple hidden">
+            <div class="rec-summary rec-summary-3">
+              <div class="rec-summary-item">
+                <span class="k">推荐设备</span>
+                <span class="v" id="rec-out-equip">—</span>
+              </div>
+              <div class="rec-summary-item">
+                <span class="k">主轴转速</span>
+                <span class="v" id="rec-out-rpm">—</span>
+              </div>
+              <div class="rec-summary-item accent">
+                <span class="k">每转进给</span>
+                <span class="v" id="rec-out-feed">—</span>
+              </div>
+            </div>
+            <p class="hint" id="rec-tip"></p>
+          </div>
+        </section>
+
+        <section id="page-model3d" class="tab-page">
+          <h1 class="page-title">三维模型工艺路线推荐</h1>
+          <p class="hint">导入 STL/OBJ 三维模型，自动识别零件特征并推荐多条完整加工路线（如粗铣 → 精铣 → 滚齿 → 去毛刺）。</p>
+
+          <form id="model3d-form" class="rec-form-panel model3d-form">
+            <div class="model3d-upload" id="model3d-drop">
+              <input type="file" id="model3d-file" accept=".stl,.obj" hidden />
+              <p class="model3d-upload-title">点击或拖拽上传三维模型</p>
+              <p class="model3d-upload-hint">支持 STL / OBJ，最大 20MB</p>
+              <p class="model3d-file-name" id="model3d-filename">未选择文件</p>
+            </div>
+            <div class="rec-field-row">
+              <div class="rec-field">
+                <label>材料（可选，覆盖自动识别）</label>
+                <select id="model3d-material">
+                  <option value="">自动</option>
+                  <option value="42CrMo">42CrMo</option>
+                  <option value="20CrMnTi">20CrMnTi</option>
+                  <option value="40Cr">40Cr</option>
+                  <option value="45钢">45钢</option>
+                </select>
+              </div>
+              <div class="rec-field">
+                <label>齿数（可选）</label>
+                <input id="model3d-teeth" type="number" placeholder="自动估算" />
+              </div>
+            </div>
+            <button type="submit" class="rec-submit-btn" id="model3d-submit">分析模型并推荐路线</button>
+          </form>
+
+          <div id="model3d-output" class="hidden">
+            <div class="panel model3d-features" id="model3d-features"></div>
+            <div id="model3d-routes" class="model3d-routes"></div>
+            <p class="hint" id="model3d-disclaimer"></p>
+          </div>
         </section>
 
         <section id="page-quality" class="tab-page">
@@ -401,7 +407,7 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/assets/app.js?v=20260519"></script>
-    <script src="/assets/app-extra.js?v=20260519"></script>
+    <script src="/assets/app.js?v=20260520"></script>
+    <script src="/assets/app-extra.js?v=20260520"></script>
   </body>
 </html>

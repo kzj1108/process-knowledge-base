@@ -237,86 +237,21 @@ def _build_presentation(
 ) -> tuple[dict, list[dict]]:
     params = _calc_demo_params(criteria, recommended)
     equipment = params["equipment_code"]
-    conf_pct = round(confidence * 100, 1)
+    module = criteria.get("module_m") or criteria.get("module") or "-"
 
-    rule_note = ""
+    tip = f"模数 M{module}，建议首件试切后微调转速与进给。"
     if matched:
-        rule_note = f"命中规则 {matched[0]['rule_code']} {matched[0]['rule_name']}"
-
-    rows: list[dict] = [
-        {
-            "category": "智能推荐",
-            "item": "设备型号",
-            "value": equipment,
-            "note": rule_note or "主轴轴承刚性优化取向",
-        },
-        {
-            "category": "工艺参数",
-            "item": "主轴转速",
-            "value": f"{params['spindle_speed']} rpm",
-            "note": "按模数与精度等级估算",
-        },
-        {
-            "category": "工艺参数",
-            "item": "每转进给",
-            "value": f"{params['feed_rate']:.2f} mm/rev",
-            "note": "",
-        },
-        {
-            "category": "工艺参数",
-            "item": "径向切深",
-            "value": f"{params['cutting_depth']} mm",
-            "note": "",
-        },
-    ]
-
-    risk_text = "；".join(risk_hints) if risk_hints else "注意刀具崩刃与齿面烧伤风险"
-    case_items = [k for k in cited_knowledge if k.get("category") == "CASE"]
-    if case_items:
-        k0 = case_items[0]
-        risk_text = (k0.get("content") or risk_text)[:80]
-    rows.append(
-        {
-            "category": "质量控制",
-            "item": "核心风险提示",
-            "value": risk_text,
-            "note": "关键控制点",
-            "highlight": True,
-        }
-    )
-
-    if similar_cases:
-        sc = similar_cases[0]
-        mod = criteria.get("module_m") or criteria.get("module")
-        sc_mod = sc.get("module_m")
-        match_pct = 92
-        if mod and sc_mod:
-            match_pct = max(70, min(98, int(92 - abs(float(mod) - float(sc_mod)) * 8)))
-        rows.append(
-            {
-                "category": "相似案例",
-                "item": "历史案例",
-                "value": f"CASE-{sc.get('part_no', 'DEMO')}（匹配度 {match_pct}%）",
-                "note": f"参考 {equipment} | M{sc_mod or mod or '-'}",
-            }
-        )
-    else:
-        rows.append(
-            {
-                "category": "相似案例",
-                "item": "历史案例",
-                "value": "暂无高度相似案例，建议补充历史工艺数据",
-                "note": "",
-            }
-        )
+        tip = f"参考规则 {matched[0]['rule_code']}，{tip}"
+    elif similar_cases:
+        tip = f"参考历史案例 {similar_cases[0].get('part_no', '')}，{tip}"
 
     summary = {
         "recommended_equipment": equipment,
-        "confidence_percent": conf_pct,
         "spindle_speed": params["spindle_speed"],
         "feed_rate": params["feed_rate"],
+        "tip": tip,
     }
-    return summary, rows
+    return summary, []
 
 
 def _build_risk_hints(criteria: dict[str, Any], matched: list[dict]) -> list[str]:

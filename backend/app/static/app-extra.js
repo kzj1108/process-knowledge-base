@@ -342,66 +342,20 @@ if (sessionStorage.getItem(STORAGE_KEY)) {
   showAccessUrl();
 }
 
-function bindRecChips(groupId, hiddenId) {
-  const group = document.getElementById(groupId);
-  const hidden = document.getElementById(hiddenId);
-  if (!group || group.dataset.bound) return;
-  group.dataset.bound = "1";
-  group.querySelectorAll(".chip").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      group.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
-      btn.classList.add("active");
-      if (hidden) hidden.value = btn.dataset.value || "";
-    });
-  });
-}
-
-function bindRecSteppers() {
-  document.querySelectorAll(".stepper-btn").forEach((btn) => {
-    if (btn.dataset.bound) return;
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", () => {
-      const input = document.getElementById(btn.dataset.target);
-      if (!input) return;
-      const delta = parseFloat(btn.dataset.delta);
-      const step = parseFloat(input.step) || 1;
-      let val = parseFloat(input.value) || 0;
-      val = Math.round((val + delta) / step) * step;
-      const min = input.min !== "" ? parseFloat(input.min) : null;
-      const max = input.max !== "" ? parseFloat(input.max) : null;
-      if (min != null) val = Math.max(min, val);
-      if (max != null) val = Math.min(max, val);
-      input.value = Number.isInteger(step) ? String(Math.round(val)) : val.toFixed(2);
-    });
-  });
-}
-
 function renderRecommendResult(data) {
   const panel = document.getElementById("rec-output");
   const summary = data.summary || {};
-  const equip = summary.recommended_equipment || data.recommended_process?.equipment_code || "—";
-  const conf =
-    summary.confidence_percent != null
-      ? `${summary.confidence_percent}%`
-      : data.confidence != null
-        ? `${(data.confidence * 100).toFixed(1)}%`
-        : "—";
+  const proc = data.recommended_process || {};
+  const equip = summary.recommended_equipment || proc.equipment_code || "—";
+  const rpm = summary.spindle_speed ?? proc.spindle_speed;
+  const feed = summary.feed_rate ?? proc.feed_rate;
 
   document.getElementById("rec-out-equip").textContent = equip;
-  document.getElementById("rec-out-conf").textContent = conf;
-
-  const rows = data.detail_rows || [];
-  const tbody = document.getElementById("rec-detail-tbody");
-  tbody.innerHTML =
-    rows
-      .map(
-        (r) =>
-          `<tr class="${r.highlight ? "rec-row-warn" : ""}"><td>${esc(r.category)}</td><td>${esc(r.item)}</td><td>${esc(r.value)}</td><td>${esc(r.note || "")}</td></tr>`
-      )
-      .join("") || "<tr><td colspan='4'>暂无推荐明细</td></tr>";
-
-  const disclaimer = document.getElementById("rec-disclaimer");
-  disclaimer.textContent = data.disclaimer || "";
+  document.getElementById("rec-out-rpm").textContent = rpm != null ? `${rpm} rpm` : "—";
+  document.getElementById("rec-out-feed").textContent =
+    feed != null ? `${Number(feed).toFixed(2)} mm/rev` : "—";
+  document.getElementById("rec-tip").textContent =
+    summary.tip || data.disclaimer || "以上为初步建议，正式下工艺前请工艺人员确认。";
   panel?.classList.remove("hidden");
 }
 
@@ -409,25 +363,19 @@ function loadRecommend() {
   const form = document.getElementById("rec-form");
   if (!form || form.dataset.bound) return;
   form.dataset.bound = "1";
-  bindRecChips("rec-grade-chips", "rec-grade");
-  bindRecChips("rec-heat-chips", "rec-heat");
-  bindRecSteppers();
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = form.querySelector(".rec-submit-btn");
     const body = {
-      part_no: document.getElementById("rec-part")?.value?.trim() || null,
       material: document.getElementById("rec-material")?.value || null,
       module_m: parseFloat(document.getElementById("rec-module")?.value) || null,
       teeth_z: parseInt(document.getElementById("rec-teeth")?.value, 10) || null,
-      accuracy_grade: document.getElementById("rec-grade")?.value || null,
-      heat_treatment: document.getElementById("rec-heat")?.value || null,
       part_type: "齿轮",
     };
     if (btn) {
       btn.disabled = true;
-      btn.textContent = "正在生成…";
+      btn.textContent = "计算中…";
     }
     try {
       const data = await api("/api/v1/recommendations/process", {
@@ -435,13 +383,12 @@ function loadRecommend() {
         body: JSON.stringify(body),
       });
       renderRecommendResult(data);
-      toast("推荐方案已生成，请工艺人员确认");
     } catch (err) {
       toast(err.message, true);
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = "生成推荐方案";
+        btn.textContent = "获取推荐";
       }
     }
   });
@@ -484,6 +431,142 @@ function loadIntegration() {
       el.textContent = JSON.stringify(data, null, 2);
     } catch (e) {
       el.textContent = e.message;
+    }
+  });
+}
+
+function renderModelFeatures(f) {
+  const el = document.getElementById("model3d-features");
+  if (!el || !f) return;
+  el.innerHTML = `
+    <h3>模型识别特征</h3>
+    <div class="detail-meta">
+      <div class="item"><div class="k">零件类型</div><div class="v">${esc(f.part_type || "-")}</div></div>
+      <div class="item"><div class="k">外径 (mm)</div><div class="v">${f.outer_diameter_mm ?? "-"}</div></div>
+      <div class="item"><div class="k">齿宽 (mm)</div><div class="v">${f.face_width_mm ?? "-"}</div></div>
+      <div class="item"><div class="k">估算模数</div><div class="v">${f.module_m != null ? "M" + f.module_m : "-"}</div></div>
+      <div class="item"><div class="k">估算齿数</div><div class="v">${f.teeth_z ?? "-"}</div></div>
+      <div class="item"><div class="k">材料</div><div class="v">${esc(f.material || "-")}</div></div>
+    </div>`;
+}
+
+function renderModelRoutes(data) {
+  const wrap = document.getElementById("model3d-routes");
+  if (!wrap) return;
+  const routes = data.routes || [];
+  wrap.innerHTML = routes
+    .map((r) => {
+      const ops = (r.operations || [])
+        .map(
+          (o) =>
+            `<tr>
+              <td>${o.operation_no ?? "-"}</td>
+              <td>${esc(o.operation_name)}</td>
+              <td>${esc(o.equipment_code || "-")}</td>
+              <td>${esc(o.tool_code || "-")}</td>
+              <td>${o.spindle_speed != null ? o.spindle_speed + " rpm" : "-"}</td>
+              <td>${o.feed_rate != null ? o.feed_rate + " mm/min" : "-"}</td>
+            </tr>`
+        )
+        .join("");
+      return `
+        <div class="model3d-route-card">
+          <div class="model3d-route-head">
+            <div>
+              <strong>${esc(r.route_name)}</strong>
+              <span class="model3d-tag">${esc(r.strategy)}</span>
+            </div>
+            <span class="model3d-conf">置信度 ${Math.round((r.confidence || 0) * 100)}%</span>
+          </div>
+          <div class="model3d-flow">${esc(r.flow_summary || r.description || "")}</div>
+          <p class="hint">参考：${esc(r.reference || "-")}</p>
+          <table>
+            <thead><tr><th>工序号</th><th>工序名称</th><th>设备</th><th>刀具</th><th>转速</th><th>进给</th></tr></thead>
+            <tbody>${ops || "<tr><td colspan='6'>无工序</td></tr>"}</tbody>
+          </table>
+        </div>`;
+    })
+    .join("");
+}
+
+function loadModel3d() {
+  const form = document.getElementById("model3d-form");
+  const fileInput = document.getElementById("model3d-file");
+  const drop = document.getElementById("model3d-drop");
+  if (!form || form.dataset.bound) return;
+  form.dataset.bound = "1";
+
+  const setFileName = (name) => {
+    const el = document.getElementById("model3d-filename");
+    if (el) el.textContent = name || "未选择文件";
+  };
+
+  drop?.addEventListener("click", () => fileInput?.click());
+  fileInput?.addEventListener("change", () => {
+    setFileName(fileInput.files?.[0]?.name);
+  });
+
+  drop?.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    drop.classList.add("dragover");
+  });
+  drop?.addEventListener("dragleave", () => drop.classList.remove("dragover"));
+  drop?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    drop.classList.remove("dragover");
+    const f = e.dataTransfer?.files?.[0];
+    if (f && fileInput) {
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      fileInput.files = dt.files;
+      setFileName(f.name);
+    }
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const file = fileInput?.files?.[0];
+    if (!file) {
+      toast("请先选择 STL 或 OBJ 模型文件", true);
+      return;
+    }
+    const btn = document.getElementById("model3d-submit");
+    const fd = new FormData();
+    fd.append("file", file);
+    const mat = document.getElementById("model3d-material")?.value;
+    const teeth = document.getElementById("model3d-teeth")?.value;
+    if (mat) fd.append("material", mat);
+    if (teeth) fd.append("teeth_z", teeth);
+    fd.append("route_count", "3");
+
+    const key = sessionStorage.getItem(STORAGE_KEY);
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "分析中…";
+    }
+    try {
+      const res = await fetch("/api/v1/recommendations/from-model", {
+        method: "POST",
+        headers: key ? { "X-API-Key": key } : {},
+        body: fd,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || res.statusText);
+      }
+      const data = await res.json();
+      document.getElementById("model3d-output")?.classList.remove("hidden");
+      renderModelFeatures(data.model_features);
+      renderModelRoutes(data);
+      document.getElementById("model3d-disclaimer").textContent = data.disclaimer || "";
+      toast(`已生成 ${data.route_count || 0} 条工艺路线`);
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "分析模型并推荐路线";
+      }
     }
   });
 }
