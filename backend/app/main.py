@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.db import TARGET_TOTAL, init_db
+from app.services.model_parser import supported_formats
 from app.routers import (
     audit,
     auth,
@@ -67,11 +68,13 @@ if STATIC_DIR.exists():
 
 @app.get("/health")
 async def health():
+    fmt = supported_formats()
     return {
         "status": "ok",
         "service": "process-knowledge-base",
         "version": "2.1.0",
         "target_total": TARGET_TOTAL,
+        "cad_available": fmt.get("cad_available"),
     }
 
 

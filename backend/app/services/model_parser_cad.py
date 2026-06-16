@@ -26,9 +26,9 @@ def cad_formats_available() -> bool:
 def parse_cad_file(content: bytes, filename: str) -> dict[str, Any]:
     if not cad_formats_available():
         raise ValueError(
-            "当前环境未安装 CAD 解析库，无法读取 STEP/IGES。"
-            "请在服务器执行: pip install cadquery>=2.4.0"
-            "（内网部署推荐；Render 免费版可能装不上）"
+            "当前运行环境未安装 CAD 解析库，无法读取 STEP/IGES。"
+            "请在 backend 目录执行: .venv\\Scripts\\pip install -r requirements-cad.txt"
+            " 然后重启 启动.bat"
         )
 
     import cadquery as cq

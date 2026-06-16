@@ -45,9 +45,10 @@ git push -u origin main
 | Name | process-knowledge-base |
 | Region | Singapore（国内访问稍好） |
 | Branch | main |
-| Runtime | Python 3 |
-| Build Command | `pip install -r backend/requirements.txt` |
-| Start Command | `cd backend && PKB_ROOT=.. PKB_DB_PATH=../data/process_kb.db python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Runtime | **Docker**（必须，否则 STEP 无法解析） |
+| Dockerfile Path | `./Dockerfile` |
+| Build Command | （Docker 模式留空） |
+| Start Command | （Docker 模式留空，由 Dockerfile CMD 启动） |
 | Plan | Free |
 
 5. **Environment Variables**（在 Render 面板添加，部署后查看生成的密码）：
@@ -132,6 +133,9 @@ Render 会自动重新构建部署。
 
 **Build 失败 `list[float]`**  
 Render 使用 Python 3.11 即可；确保 `render.yaml` 里 `PYTHON_VERSION: 3.11.9`。
+
+**Build 失败 `cadquery` / `libGL`**  
+确认 Runtime 为 **Docker**，且仓库根目录有 `Dockerfile`（内含 `libgl1` 与 `requirements-cad.txt`）。构建日志应出现 `cadquery ok`。
 
 **502 / 启动失败**  
 在 Render → Logs 查看日志；确认 Start Command 与仓库目录结构一致。

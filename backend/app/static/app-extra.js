@@ -557,17 +557,29 @@ function loadModel3d() {
   if (!form || form.dataset.bound) return;
   form.dataset.bound = "1";
 
+  const host = location.hostname || "";
+  const isLocal = host === "localhost" || host === "127.0.0.1" || host.startsWith("192.168.");
+  const isRender = host.includes("onrender.com");
+
   fetch("/api/v1/recommendations/supported-formats")
     .then((r) => r.json())
     .then((d) => {
       const el = document.getElementById("model3d-format-hint");
       if (!el) return;
       if (d.cad_available) {
-        el.textContent = "✓ 服务器已支持 STEP/IGES 精确解析，请优先上传 .step 文件";
+        el.textContent = "✓ 当前环境已支持 STEP/IGES 精确解析，请优先上传 .step 文件";
         el.style.color = "#86efac";
+      } else if (isRender) {
+        el.textContent =
+          "公网 Render 需 Docker 部署才支持 STEP；若仍见本提示，请在 Render 将 Runtime 改为 Docker 并重新部署";
+        el.style.color = "#fbbf24";
+      } else if (isLocal) {
+        el.textContent =
+          "本机 CAD 库未就绪：关闭旧服务窗口，在 backend 目录双击 启动.bat 重启（会自动安装 requirements-cad.txt）";
+        el.style.color = "#fbbf24";
       } else {
         el.textContent =
-          "当前服务器未装 CAD 库，STEP 暂不可用；请用 STL 并选手动单位，或在内网执行 pip install -r requirements-cad.txt";
+          "当前服务器未装 CAD 库，STEP 暂不可用；请用 STL 并选手动单位，或在服务器执行 pip install -r requirements-cad.txt 后重启";
         el.style.color = "#fbbf24";
       }
     })
@@ -604,7 +616,7 @@ function loadModel3d() {
     e.preventDefault();
     const file = fileInput?.files?.[0];
     if (!file) {
-      toast("请先选择 STL 或 OBJ 模型文件", true);
+      toast("请先选择三维模型文件（推荐 STEP）", true);
       return;
     }
     const btn = document.getElementById("model3d-submit");

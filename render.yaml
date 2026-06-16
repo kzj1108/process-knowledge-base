@@ -1,16 +1,14 @@
-# Render Blueprint
+# Render Blueprint — Docker 部署（含 STEP/IGES CAD 解析）
 services:
   - type: web
     name: process-knowledge-base
-    runtime: python
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     plan: free
     region: singapore
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && PKB_ROOT=.. PKB_DB_PATH=../data/pkb.db PKB_TARGET_TOTAL=50000 python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
       - key: PKB_DB_DRIVER
         value: sqlite
       - key: PKB_API_KEY
@@ -22,6 +20,6 @@ services:
       - key: PKB_TARGET_TOTAL
         value: "50000"
       - key: PKB_DB_PATH
-        value: data/pkb.db
+        value: /app/data/pkb.db
       - key: PKB_ROOT
-        value: .
+        value: /app
